@@ -120,16 +120,43 @@ console.log('web game');
   check((await econ()).ship === 'gunship', 'buying a ship equips it');
   await page.screenshot({ path: join(out, 'web-ships.png') });
   await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Digit5');
+  e = await econ();
+  check(e.world === 'mars' && !e.menuOpen, 'buying a world travels there and closes the hangar');
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: join(out, 'web-mars.png') });
+
+  // the cheats tab is hidden until Ctrl+Alt+Shift+G
+  check(!(await econ()).tabs.includes('CHEATS'), 'cheats tab is hidden by default');
+  await page.keyboard.press('Control+Alt+Shift+KeyG');
+  e = await econ();
+  check(e.cheatsUnlocked && e.tabs.includes('CHEATS') && !e.menuOpen, 'Ctrl+Alt+Shift+G unlocks the cheats tab');
+  check((await page.evaluate(() => window.__moonLanderDebug.state().toasts)).includes('CHEATS UNLOCKED'), 'shows the CHEATS UNLOCKED popup');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Digit2');
   check((await econ()).cheat.god === true, 'cheats tab toggles god mode');
   await page.screenshot({ path: join(out, 'web-cheats.png') });
   await page.keyboard.press('Digit2');
   await page.keyboard.press('Digit1');
-  check((await econ()).credits === 4350 + 1000, 'cheat adds credits');
+  check((await econ()).credits === 4150 + 1000, 'cheat adds credits');
   await page.keyboard.press('Escape');
   await page.keyboard.press('KeyQ');
   check((await econ()).weapon === 'laser', 'Q cycles through owned weapons');
   check(await page.evaluate(() => JSON.parse(localStorage.getItem('moonLander.save.v1')).weapons.includes('rail')), 'owned weapons are saved');
+
+  // every world builds and runs
+  const visited = await page.evaluate(() => {
+    const d = window.__moonLanderDebug, seen = [];
+    for (const id of ['mercury', 'venus', 'earth', 'mars', 'io', 'titan', 'miranda', 'triton', 'pluto', 'moon']) {
+      d.world(id);
+      for (let i = 0; i < 3; i++) window.__moonLanderStep(1 / 60);
+      seen.push(window.MoonLander.world);
+    }
+    return seen;
+  });
+  check(visited.length === 10 && visited[9] === 'moon' && visited[5] === 'titan', 'all ten worlds build and run');
+  await page.keyboard.press('ArrowUp');
 
   // every weapon fires; holding fire overheats the gun, and it recovers
   const fired = await page.evaluate(() => {

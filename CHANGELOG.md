@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 — 2026-11-12
+
+- **Solar system** — a Worlds tab in the hangar unlocks Mercury, Venus, Earth, Mars, Io, Titan, Miranda, Triton and Pluto. Each has its own terrain, colours, star density and gravity, and its own body in the sky: the Sun, the Moon, Jupiter, ringed Saturn, Uranus, Neptune or Charon.
+- **Cheats are hidden** — the Cheats tab only appears after Ctrl+Alt+Shift+G, which pops up "CHEATS UNLOCKED". Pressing it again hides the tab and switches cheats off. The setting is now "Allow the secret cheats menu".
+- The Earth easter eggs work on whatever is in the sky.
+
 ## 1.1.0 — 2026-11-12
 
 - **Weapon heat** — every shot heats the gun and it cools on its own; at 100 % it overheats and locks until it has cooled down. A heat gauge sits next to the weapon name in the HUD.

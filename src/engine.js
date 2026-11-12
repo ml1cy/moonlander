@@ -64,6 +64,34 @@
   };
   Object.assign(cfg, HOST.defaults || {});   // per-target defaults (e.g. the game starts with autopilot off)
 
+  // Worlds you can fly on. grav multiplies the Moon's gravity, stars the star density; body is what
+  // hangs in the sky (see BODIES) at bodyScale x Earth's size. The Moon uses the colour settings.
+  const WORLDS = [
+    { id: 'moon', name: 'MOON', desc: 'HOME BASE. EARTH IN THE SKY', cost: 0, grav: 1, stars: 1, body: 'earth', bodyScale: 1 },
+    { id: 'mercury', name: 'MERCURY', desc: 'SCORCHED ROCK UNDER A HUGE SUN. HEAVY', cost: 150, grav: 1.35, stars: 1, body: 'sun', bodyScale: 1.7,
+      ground: '#8f8880', skyTop: '#050409', skyBottom: '#2a1a12' },
+    { id: 'venus', name: 'VENUS', desc: 'CRUSHING GRAVITY UNDER A YELLOW HAZE', cost: 250, grav: 1.6, stars: 0, body: 'sun', bodyScale: 0.9,
+      ground: '#c9903a', skyTop: '#6b3a10', skyBottom: '#e0a040' },
+    { id: 'earth', name: 'EARTH', desc: 'HOME. THE HEAVIEST GRAVITY OF ALL', cost: 400, grav: 1.9, stars: 0.15, body: 'luna', bodyScale: 0.6,
+      ground: '#5f9a4a', skyTop: '#1c4fa8', skyBottom: '#9fd0ff' },
+    { id: 'mars', name: 'MARS', desc: 'RED DUST AND A SMALL PALE SUN', cost: 200, grav: 1.35, stars: 0.5, body: 'sun', bodyScale: 0.45,
+      ground: '#b5583a', skyTop: '#2a1410', skyBottom: '#c98a62' },
+    { id: 'io', name: 'IO', desc: 'SULPHUR PLAINS BELOW GIANT JUPITER', cost: 300, grav: 1.1, stars: 1, body: 'jupiter', bodyScale: 2.2,
+      ground: '#c9b84a', skyTop: '#040408', skyBottom: '#241c10' },
+    { id: 'titan', name: 'TITAN', desc: 'ORANGE SMOG, LIGHT GRAVITY, SATURN OVERHEAD', cost: 350, grav: 0.85, stars: 0.1, body: 'saturn', bodyScale: 1.3,
+      ground: '#a8782e', skyTop: '#3a2408', skyBottom: '#c88a30' },
+    { id: 'miranda', name: 'MIRANDA', desc: 'ALMOST NO GRAVITY. URANUS FILLS THE SKY', cost: 350, grav: 0.35, stars: 1, body: 'uranus', bodyScale: 1.8,
+      ground: '#9fb4b8', skyTop: '#02040a', skyBottom: '#10242c' },
+    { id: 'triton', name: 'TRITON', desc: 'PINK ICE UNDER BLUE NEPTUNE', cost: 400, grav: 0.6, stars: 1, body: 'neptune', bodyScale: 1.4,
+      ground: '#c8b8c8', skyTop: '#020308', skyBottom: '#141a3c' },
+    { id: 'pluto', name: 'PLUTO', desc: 'THE EDGE. CHARON HANGS IN THE DARK', cost: 500, grav: 0.5, stars: 1, body: 'charon', bodyScale: 1.2,
+      ground: '#c9a98a', skyTop: '#010103', skyBottom: '#0c0c18' }
+  ];
+  let worldDef = WORLDS[0];
+  const groundCol = () => worldDef.ground || cfg.groundColor;
+  const skyTopCol = () => worldDef.skyTop || cfg.skyTop;
+  const skyBotCol = () => worldDef.skyBottom || cfg.skyBottom;
+
   let needsRebuild = true;
   let needsShip = true;
   let worldSeed = (Math.random() * 1e9) | 0;
@@ -241,8 +269,9 @@
     canvas.style.height = (H * PS / DPR) + 'px';
     ctx.imageSmoothingEnabled = false;
 
-    noiseSeed = worldSeed;
-    const rng = mulberry32(worldSeed);
+    const seed = (worldSeed + 7919 * WORLDS.indexOf(worldDef)) | 0;    // every world gets its own terrain
+    noiseSeed = seed;
+    const rng = mulberry32(seed);
     buildTerrain(rng);
     buildRidge(rng);
     buildSky();
@@ -295,7 +324,7 @@
     const fctx = fgCanvas.getContext('2d');
     const img = fctx.createImageData(WW, H);
     const d = img.data;
-    const g = hexToRgb(cfg.groundColor);
+    const g = hexToRgb(groundCol());
     const nr = (0.17 * WW) / TAU;
     const colC = new Float32Array(WW), colS = new Float32Array(WW);
     for (let x = 0; x < WW; x++) { const th = (x / WW) * TAU; colC[x] = Math.cos(th) * nr; colS[x] = Math.sin(th) * nr; }
@@ -387,7 +416,7 @@
     const rc = ridgeCanvas.getContext('2d');
     const img = rc.createImageData(RW, H);
     const d = img.data;
-    const bot = hexToRgb(cfg.skyBottom), g = hexToRgb(cfg.groundColor);
+    const bot = hexToRgb(skyBotCol()), g = hexToRgb(groundCol());
     const ridge = [lerp(g[0] * 0.42, bot[0], 0.35), lerp(g[1] * 0.42, bot[1], 0.35), lerp(g[2] * 0.42, bot[2], 0.35)];
     const nr = (0.12 * RW) / TAU;
     for (let x = 0; x < RW; x++) {
@@ -411,7 +440,7 @@
     const bctx = skyCanvas.getContext('2d');
     const img = bctx.createImageData(W, H);
     const d = img.data;
-    const top = hexToRgb(cfg.skyTop), bot = hexToRgb(cfg.skyBottom);
+    const top = hexToRgb(skyTopCol()), bot = hexToRgb(skyBotCol());
     const neb = [clamp(bot[0] * 1.9 + 30, 0, 255), clamp(bot[1] * 1.3 + 10, 0, 255), clamp(bot[2] * 1.8 + 40, 0, 255)];
     for (let y = 0; y < H; y++) {
       const t = Math.pow(clamp(y / (H * 0.8), 0, 1), 1.35);
@@ -434,7 +463,7 @@
 
   function buildStars(rng) {
     stars = [];
-    const target = Math.round(W * H * 1.3 * 0.005 * (cfg.starDensity / 100));
+    const target = Math.round(W * H * 1.3 * 0.005 * (cfg.starDensity / 100) * worldDef.stars);
     const tints = ['#ffffff', '#ffffff', '#cfe0ff', '#fff0d2', '#ffd8e4'];
     for (let i = 0; i < target; i++) {
       const layer = rng() < 0.6 ? 0 : rng() < 0.75 ? 1 : 2;
@@ -450,10 +479,38 @@
   }
 
   // ================================================================ Earth (texture-mapped, rotating)
+  // `earth` is whatever hangs in the sky of the current world: Earth from the Moon, Jupiter from Io...
+  // A body's tex(x, y, z) returns the surface colour at a point on the unit sphere (y = latitude).
+  // atm = limb tint, halo = glow outside the disc, unlit = no day/night shading, rings = ring colour.
+  const bands = (y, n, f) => 0.5 + 0.5 * Math.sin(y * f + (n - 0.5) * 3);
+  const BODIES = {
+    earth: { name: 'EARTH', atm: [110, 180, 255], halo: [90, 160, 255] },
+    sun: { name: 'THE SUN', unlit: true, halo: [255, 196, 90],
+      tex: (x, y, z) => mixRgb([255, 150, 30], [255, 244, 180], clamp(fbm3(x * 3 + 5, y * 3, z * 3) * 1.6 - 0.3, 0, 1)) },
+    luna: { name: 'THE MOON',
+      tex: (x, y, z) => { const n = fbm3(x * 2.2 + 20, y * 2.2, z * 2.2); return n > 0.56 ? [142, 142, 152] : n > 0.47 ? [190, 190, 198] : [224, 224, 230]; } },
+    jupiter: { name: 'JUPITER', atm: [255, 226, 180], halo: [190, 150, 100],
+      tex: (x, y, z) => {
+        if (Math.hypot(x - 0.55, y - 0.38, z - 0.74) < 0.2) return [196, 84, 52];          // the Great Red Spot
+        return mixRgb([168, 108, 70], [234, 212, 176], bands(y, fbm3(x * 2 + 30, y * 6, z * 2), 13));
+      } },
+    saturn: { name: 'SATURN', atm: [255, 236, 190], halo: [190, 160, 110], rings: [216, 192, 142],
+      tex: (x, y, z) => mixRgb([188, 156, 104], [234, 212, 160], bands(y, fbm3(x * 2 + 40, y * 5, z * 2), 10)) },
+    uranus: { name: 'URANUS', atm: [210, 250, 250], halo: [120, 200, 210],
+      tex: (x, y, z) => mixRgb([132, 204, 212], [178, 234, 234], bands(y, fbm3(x + 60, y * 3, z), 5)) },
+    neptune: { name: 'NEPTUNE', atm: [150, 190, 255], halo: [70, 110, 230],
+      tex: (x, y, z) => {
+        const col = mixRgb([34, 66, 186], [72, 122, 236], bands(y, fbm3(x * 2 + 70, y * 5, z * 2), 7));
+        return fbm3(x * 3 + 80, y * 10, z * 3) > 0.66 ? mixRgb(col, [235, 242, 255], 0.6) : col;
+      } },
+    charon: { name: 'CHARON',
+      tex: (x, y, z) => { const n = fbm3(x * 2.4 + 90, y * 2.4, z * 2.4); return y < -0.72 ? [128, 84, 72] : n > 0.55 ? [118, 112, 110] : [164, 156, 150]; } }
+  };
   let earth = null;
 
   function buildEarth() {
-    const R = Math.max(6, Math.round(H * 0.065));
+    const body = BODIES[worldDef.body];
+    const R = Math.max(4, Math.round(H * 0.065 * worldDef.bodyScale));
     const size = 2 * R + 4, c = R + 2;
     const TW = Math.max(48, Math.round(TAU * R * 1.5));
     const TH = Math.max(24, Math.round(Math.PI * R * 1.5));
@@ -465,6 +522,11 @@
       for (let u = 0; u < TW; u++) {
         const lon = ((u + 0.5) / TW) * TAU;
         const px = cl * Math.sin(lon), py = sl, pz = cl * Math.cos(lon);
+        if (body.tex) {
+          const col = body.tex(px, py, pz), t = v * TW + u;
+          tex[t * 3] = col[0]; tex[t * 3 + 1] = col[1]; tex[t * 3 + 2] = col[2];
+          continue;
+        }
         const land = fbm3(px * 1.7 + 10, py * 1.7, pz * 1.7);
         const cloud = fbm3(px * 2.4 + 50, py * 4.2, pz * 2.4);
         let col;
@@ -499,20 +561,40 @@
         const light = (nx * L[0] + ny * L[1] + nz * L[2]) / ll;
         if (r > R) {
           const a = clamp(light + 0.3, 0, 1) * 0.55;
-          if (a > 0.05) halo.push(py * size + px, a, bayer(px, py));
+          if (body.halo && (a > 0.05 || body.unlit)) halo.push(py * size + px, body.unlit ? 0.6 : a, bayer(px, py));
           continue;
         }
         const bx = nx * ct - ny * st, by = nx * st + ny * ct;
         idx.push(py * size + px);
         lon.push(Math.atan2(bx, nz));
         vrow.push(clamp(Math.floor((Math.asin(clamp(by, -1, 1)) / Math.PI + 0.5) * TH), 0, TH - 1));
-        bq.push(Math.floor(clamp(light * 1.25 + 0.08, 0, 1) * 5 + bayer(px, py)) / 5);
-        limb.push(r > R - 1.3 ? 1 : 0);
+        bq.push(body.unlit ? 1 : Math.floor(clamp(light * 1.25 + 0.08, 0, 1) * 5 + bayer(px, py)) / 5);
+        limb.push(body.atm && r > R - 1.3 ? 1 : 0);
         bay.push(bayer(px, py));
       }
     }
     const cv = makeCanvas(size, size);
+    // Rings: a tilted ellipse split into the half behind the planet and the half in front of it.
+    let ring = null;
+    if (body.rings) {
+      const rc = Math.ceil(R * 2.3) + 1, rs = rc * 2;
+      const back = makeCanvas(rs, rs), front = makeCanvas(rs, rs);
+      const bg = back.getContext('2d'), fg = front.getContext('2d');
+      const ca = Math.cos(-0.3), sa = Math.sin(-0.3);
+      for (let py = 0; py < rs; py++) for (let px = 0; px < rs; px++) {
+        const dx = px + 0.5 - rc, dy = py + 0.5 - rc;
+        const ex = dx * ca - dy * sa, ey = (dx * sa + dy * ca) / 0.3;
+        const rr = Math.hypot(ex, ey) / R;
+        if (rr < 1.35 || rr > 2.2 || (rr > 1.78 && rr < 1.88)) continue;
+        const k = (rr < 1.78 ? 1 : 0.7) * (0.8 + 0.2 * bayer(px, py));
+        const g = ey < 0 ? bg : fg;
+        g.fillStyle = rgbStr(body.rings.map(v => v * k));
+        g.fillRect(px, py, 1, 1);
+      }
+      ring = { back, front, c: rc };
+    }
     earth = {
+      name: body.name, atm: body.atm || [0, 0, 0], haloCol: body.halo || [0, 0, 0], ring,
       R, size, c, TW, TH, tex, city,
       idx: Int32Array.from(idx), lon: Float32Array.from(lon), vrow: Int32Array.from(vrow),
       bq: Float32Array.from(bq), limb: Uint8Array.from(limb), bay: Float32Array.from(bay), halo,
@@ -548,7 +630,7 @@
         if (b <= 0.2 && e.city[t]) { r = 255; g = 205; bl = 120; }   // city lights on the night side
         if (e.limb[k]) {
           const kk = 0.45 * clamp(b + 0.15, 0, 1);
-          r = lerp(r, 110, kk); g = lerp(g, 180, kk); bl = lerp(bl, 255, kk);
+          r = lerp(r, e.atm[0], kk); g = lerp(g, e.atm[1], kk); bl = lerp(bl, e.atm[2], kk);
         }
       }
       d[i] = r; d[i + 1] = g; d[i + 2] = bl; d[i + 3] = 255;
@@ -556,7 +638,7 @@
     for (let k = 0; k < e.halo.length; k += 3) {
       if (reveal < 1 && e.halo[k + 2] >= reveal) continue;
       const i = e.halo[k] * 4;
-      d[i] = 90; d[i + 1] = 160; d[i + 2] = 255; d[i + 3] = e.halo[k + 1] * 255;
+      d[i] = e.haloCol[0]; d[i + 1] = e.haloCol[1]; d[i + 2] = e.haloCol[2]; d[i + 3] = e.halo[k + 1] * 255;
     }
     e.cctx.putImageData(e.img, 0, 0);
   }
@@ -570,7 +652,7 @@
     e.t += dt;
     switch (e.state) {
       case 'bsod':
-        if (e.t > 5) { e.state = 'reveal'; e.t = 0; e.fromNuke = false; toast('EARTH RESTARTED', 2); }
+        if (e.t > 5) { e.state = 'reveal'; e.t = 0; e.fromNuke = false; toast(e.name + ' RESTARTED', 2); }
         break;
       case 'boom':
         for (const s of e.shards) {
@@ -586,7 +668,7 @@
       case 'reveal':
         if (e.t > 1.6) {
           e.state = 'ok'; e.t = 0;
-          if (e.fromNuke) toast("EARTH RESTORED. PLEASE DON'T DO THAT AGAIN", 3.5);
+          if (e.fromNuke) toast(e.name + " RESTORED. PLEASE DON'T DO THAT AGAIN", 3.5);
           e.fromNuke = false;
         }
         break;
@@ -597,6 +679,8 @@
     const e = earth, ex = e.x, ey = earthScreenY();
     const left = ex - e.c, top = ey - e.c;
     const rot = earthRot();
+    const rings = e.ring && e.state !== 'boom' && e.state !== 'restore';
+    if (rings) ctx.drawImage(e.ring.back, ex - e.ring.c, ey - e.ring.c);
     switch (e.state) {
       case 'ok': renderEarth(rot, 1, false); ctx.drawImage(e.canvas, left, top); break;
       case 'bsod':
@@ -606,6 +690,7 @@
       case 'reveal': renderEarth(rot, clamp(e.t / 1.5, 0, 1), false); ctx.drawImage(e.canvas, left, top); break;
       case 'boom': drawBoom(ex, ey); break;
     }
+    if (rings) ctx.drawImage(e.ring.front, ex - e.ring.c, ey - e.ring.c);
   }
 
   function drawBoom(ex, ey) {
@@ -1403,7 +1488,7 @@
   let hintT = 0, hintShown = false, hudAlpha = 0;
   let flash = 0, shake = 0;
 
-  const GRAV = () => H * 0.10 * (cheat.lowGrav ? 0.4 : 1);
+  const GRAV = () => H * 0.10 * worldDef.grav * (cheat.lowGrav ? 0.4 : 1);
   const THRUST = () => H * 0.27 * (1 + 0.12 * up.engine) * shipDef.thrust * (turboT > 0 ? 1.35 : 1);
   // Side thrusters: gentle angular acceleration, capped spin, a little friction so taps
   // give small, controllable turns. Nothing pulls the ship back to level.
@@ -2319,13 +2404,13 @@
         life: rand(0.6, 1.6), age: 0, s0: 2, s1: 1, hit: true, noGround: true });
     }
     flash = 1.6; shake = 1.2;
-    toast('EARTH.EXE HAS STOPPED RESPONDING', 4, '#ff6b5b');
+    toast(earth.name + '.EXE HAS STOPPED RESPONDING', 4, '#ff6b5b');
   }
 
   function bsodEarth() {
     if (!earthVisible()) return;
     earth.state = 'bsod'; earth.t = 0;
-    toast('EARTH RAN INTO A PROBLEM AND NEEDS TO RESTART', 4, '#9fd0ff');
+    toast(earth.name + ' RAN INTO A PROBLEM AND NEEDS TO RESTART', 4, '#9fd0ff');
   }
 
   function konami() {
@@ -2391,7 +2476,7 @@
     sparkleBurst(earth.x + cam.x, earthScreenY() + cam.y, 10, H * 0.08);
     if (!cfg.eggs) return;
     const n = earth.clicks.length;
-    if (n === 3) toast('PLEASE STOP POKING EARTH', 1.6);
+    if (n === 3) toast('PLEASE STOP POKING ' + earth.name, 1.6);
     else if (n === 4) toast('LAST WARNING', 1.4, '#ff9b6b');
     else if (n >= 5) { earth.clicks = []; launchNuke(); }
   }
@@ -2417,7 +2502,31 @@
     { id: 'gunship', name: 'GUNSHIP', desc: 'TWIN CANNONS THAT COOL MUCH FASTER', cost: 350, thrust: 1, turn: 0.9, hull: 1, cool: 1.6, shield: 0 }
   ];
   let shipDef = SHIPS[0];
-  const owned = { weapons: new Set(['laser']), ships: new Set(['classic']) };
+  const owned = { weapons: new Set(['laser']), ships: new Set(['classic']), worlds: new Set(['moon']) };
+
+  function setWorld(id) {
+    const wl = WORLDS.find(v => v.id === id);
+    if (!wl) return;
+    owned.worlds.add(id);
+    if (wl !== worldDef) {
+      worldDef = wl;
+      needsRebuild = true;
+      menuOpen = false;
+      toast('WELCOME TO ' + (wl.id === "moon" ? "THE MOON" : wl.name), 2.5, '#9fd0ff');
+    }
+    saveGame();
+  }
+
+  // The cheats tab stays hidden until Ctrl+Alt+Shift+G; pressing it again hides it and switches cheats off.
+  let cheatsUnlocked = false;
+  function toggleCheatsUnlock() {
+    if (!cfg.cheats) return;
+    cheatsUnlocked = !cheatsUnlocked;
+    if (!cheatsUnlocked) for (const k in cheat) cheat[k] = false;
+    toast(cheatsUnlocked ? 'CHEATS UNLOCKED' : 'CHEATS HIDDEN', 2.5, '#ff9cf0');
+    noteInteract();
+    saveGame();
+  }
   const maxShield = () => up.shield + shipDef.shield;
 
   function setWeapon(id) {
@@ -2456,8 +2565,12 @@
     { name: 'GOD MODE', desc: 'NOTHING CAN DESTROY THE SHIP', flag: 'god' },
     { name: 'NO OVERHEAT', desc: 'THE WEAPON NEVER HEATS UP', flag: 'noHeat' },
     { name: 'LOW GRAVITY', desc: 'FLOATY FLIGHT', flag: 'lowGrav' },
-    { name: 'UNLOCK ALL WEAPONS AND SHIPS', desc: 'EVERYTHING IN THE HANGAR, FREE',
-      run: () => { for (const w of WEAPONS) owned.weapons.add(w.id); for (const sh of SHIPS) owned.ships.add(sh.id); } },
+    { name: 'UNLOCK EVERYTHING', desc: 'ALL WEAPONS, SHIPS AND WORLDS, FREE',
+      run: () => {
+        for (const w of WEAPONS) owned.weapons.add(w.id);
+        for (const sh of SHIPS) owned.ships.add(sh.id);
+        for (const wl of WORLDS) owned.worlds.add(wl.id);
+      } },
     { name: 'MAX ALL UPGRADES', desc: 'EVERY UPGRADE TO ITS TOP LEVEL',
       run: () => { for (const u of UPGRADES) up[u.id] = u.max; shield.charges = maxShield(); rainbowOn = true; } },
     { name: 'TURBO BOOST', desc: '30 SECONDS OF TURBO', run: () => konami() },
@@ -2487,21 +2600,28 @@
       for (const id of s.ships || []) if (SHIPS.some(sh => sh.id === id)) owned.ships.add(id);
       if (owned.weapons.has(s.weapon)) weaponDef = WEAPONS.find(w => w.id === s.weapon);
       if (owned.ships.has(s.ship)) { shipDef = SHIPS.find(sh => sh.id === s.ship); needsShip = true; }
+      for (const id of s.worlds || []) if (WORLDS.some(wl => wl.id === id)) owned.worlds.add(id);
+      if (owned.worlds.has(s.world)) { worldDef = WORLDS.find(wl => wl.id === s.world); needsRebuild = true; }
+      cheatsUnlocked = !!s.cheatsUnlocked;
     } catch (e) { /* storage unavailable: start fresh */ }
     shield.charges = maxShield();
   }
   function saveGame() {
     try { localStorage.setItem(SAVE_KEY, JSON.stringify({
         credits, up, score, rainbowOn,
-        weapons: [...owned.weapons], ships: [...owned.ships], weapon: weaponDef.id, ship: shipDef.id
+        weapons: [...owned.weapons], ships: [...owned.ships], weapon: weaponDef.id, ship: shipDef.id,
+        worlds: [...owned.worlds], world: worldDef.id, cheatsUnlocked
       })); } catch (e) { /* ignore */ }
   }
   function resetProgress() {
     credits = 0;
     for (const k in up) up[k] = 0;
     for (const k in score) score[k] = 0;
-    owned.weapons = new Set(['laser']); owned.ships = new Set(['classic']);
+    owned.weapons = new Set(['laser']); owned.ships = new Set(['classic']); owned.worlds = new Set(['moon']);
     weaponDef = WEAPONS[0]; shipDef = SHIPS[0]; needsShip = true;
+    if (worldDef !== WORLDS[0]) { worldDef = WORLDS[0]; needsRebuild = true; }
+    cheatsUnlocked = false;
+    for (const k in cheat) cheat[k] = false;
     heat = 0; overheated = false;
     shield.charges = 0;
     saveGame();
@@ -2564,8 +2684,8 @@
 
   // ---------------------------------------------------------------- hangar menu (upgrades, weapons, ships, cheats)
   let menuOpen = false, menuHover = -1, menuMsg = '', menuMsgT = 0, menuTab = 0;
-  const MENU_MAX_ROWS = 9;                          // also the number keys 1-9
-  const menuTabs = () => cfg.cheats ? ['UPGRADES', 'WEAPONS', 'SHIPS', 'CHEATS'] : ['UPGRADES', 'WEAPONS', 'SHIPS'];
+  const MENU_MAX_ROWS = 11;                         // number keys 1-9 and 0 pick the first ten rows
+  const menuTabs = () => cfg.cheats && cheatsUnlocked ? ['UPGRADES', 'WEAPONS', 'SHIPS', 'WORLDS', 'CHEATS'] : ['UPGRADES', 'WEAPONS', 'SHIPS', 'WORLDS'];
 
   function menuFlash(msg) { menuMsg = msg; menuMsgT = 2; }
 
@@ -2583,11 +2703,11 @@
   }
 
   // A weapon or ship: buy it once, then click to equip.
-  function shopRow(item, set, current, equip) {
+  function shopRow(item, set, current, equip, curLabel = 'EQUIPPED') {
     const has = set.has(item.id), cur = item === current;
     return {
       name: item.name, desc: item.desc,
-      right: cur ? 'EQUIPPED' : has ? 'OWNED' : '$' + item.cost,
+      right: cur ? curLabel : has ? 'OWNED' : '$' + item.cost,
       col: cur ? '#9dff7a' : has ? '#a9b4d6' : credits >= item.cost ? '#ffd75a' : '#7a6a4a',
       act() {
         if (!has) {
@@ -2595,7 +2715,7 @@
           credits -= item.cost;
         }
         equip(item.id);
-        menuFlash(item.name + ' EQUIPPED');
+        menuFlash(item.name + (curLabel === 'HERE' ? ': ARRIVED' : ' EQUIPPED'));
       }
     };
   }
@@ -2618,6 +2738,7 @@
         ...toggle(cfg.autopilot), act: () => toggleAutopilot() });
     } else if (tab === 'WEAPONS') rows = WEAPONS.map(w => shopRow(w, owned.weapons, weaponDef, setWeapon));
     else if (tab === 'SHIPS') rows = SHIPS.map(sh => shopRow(sh, owned.ships, shipDef, setShip));
+    else if (tab === 'WORLDS') rows = WORLDS.map(wl => shopRow(wl, owned.worlds, worldDef, setWorld, 'HERE'));
     else rows = CHEATS.map(c => ({ name: c.name, desc: c.desc, ...(c.flag ? toggle(cheat[c.flag]) : { right: '', col: '' }), act: () => runCheat(c) }));
     rows.push({ name: 'CLOSE  (TAB / ESC)', close: true, desc: '', right: '', col: '', act: () => { menuOpen = false; } });
     return rows;
@@ -2690,7 +2811,7 @@
     rows.forEach((row, i) => {
       const y = L.top + i * L.rowH;
       if (i === menuHover) { ctx.fillStyle = '#1c2442'; ctx.fillRect(L.x + 2, y - 2, L.w - 4, L.rowH - 1); }
-      drawText(row.close ? row.name : (i + 1) + ' ' + row.name, L.x + 8, y, row.close ? '#a9b4d6' : '#e8ecff');
+      drawText(row.close ? row.name : (i + 1) % 10 + ' ' + row.name, L.x + 8, y, row.close ? '#a9b4d6' : '#e8ecff');
       if (row.pips) {
         for (let l = 0; l < row.pips[1]; l++) {
           ctx.fillStyle = l < row.pips[0] ? '#7ff0ff' : '#2b3550';
@@ -2824,7 +2945,7 @@
     ctx.globalAlpha = 1;
 
     if (earth && earth.state === 'restore') {
-      const label = 'RESTORING EARTH FROM BACKUP...';
+      const label = 'RESTORING ' + earth.name + ' FROM BACKUP...';
       const bw = 120, bx = Math.round((W - bw) / 2), by = Math.round(H * 0.45);
       drawText(label, Math.round((W - textWidth(label)) / 2), by - 9, '#9fd0ff');
       ctx.fillStyle = '#05060f'; ctx.fillRect(bx - 1, by - 1, bw + 2, 7);
@@ -3005,14 +3126,19 @@
 
   window.addEventListener('keydown', e => {
     if (inFormField(e)) return;
+    if (e.code === 'KeyG' && e.ctrlKey && e.altKey && e.shiftKey) {       // secret: show/hide the cheats tab
+      e.preventDefault();
+      if (!e.repeat) toggleCheatsUnlock();
+      return;
+    }
     if (e.code === 'Tab' || e.code === 'KeyG') { e.preventDefault(); if (!e.repeat) toggleMenu(); return; }
     if (menuOpen) {
       e.preventDefault();
       if (e.code === 'Escape') toggleMenu(false);
       if (e.code === 'ArrowLeft' || e.code === 'KeyA') menuSetTab(menuTab - 1);
       if (e.code === 'ArrowRight' || e.code === 'KeyD') menuSetTab(menuTab + 1);
-      const d = /^Digit([1-9])$/.exec(e.code);
-      if (d && !e.repeat) menuActivate(Number(d[1]) - 1);
+      const d = /^Digit([0-9])$/.exec(e.code);
+      if (d && !e.repeat) menuActivate((Number(d[1]) + 9) % 10);
       return;
     }
     if (!e.repeat) eggKey(e);
@@ -3104,14 +3230,14 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = cfg.skyTop;
+    ctx.fillStyle = skyTopCol();
     ctx.fillRect(0, 0, W, H);
     ctx.save();
     if (shake > 0.02) ctx.translate(Math.round(rand(-3, 3) * shake), Math.round(rand(-3, 3) * shake));
 
     ctx.drawImage(skyCanvas, 0, 0);
     const alt = CEIL ? clamp(-cam.y / CEIL, 0, 1) : 0;
-    if (alt > 0.01) { ctx.globalAlpha = alt * 0.75; ctx.fillStyle = cfg.skyTop; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+    if (alt > 0.01) { ctx.globalAlpha = alt * 0.75; ctx.fillStyle = skyTopCol(); ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
 
     // stars (parallax)
     const ox = -mouse.sx * 1.5, oy = -mouse.sy * 1.0;
@@ -3248,7 +3374,7 @@
     rocket.x = loop.padX; rocket.y = loop.padY; rocket.angle = loop.padA; rocket.thrust = 0;
     return loopTimes().period;
   };
-  window.__moonLanderStep = function (dt) { update(dt); render(); };
+  window.__moonLanderStep = function (dt) { if (needsRebuild) build(); update(dt); render(); };
   window.__moonLanderDebug = {
     state: () => ({
       mode: rocket.mode, state: rocket.state, x: rocket.x, y: rocket.y, angle: rocket.angle, w: rocket.w,
@@ -3264,8 +3390,9 @@
     credits: n => { credits = n; saveGame(); },
     econ: () => ({ credits, up: { ...up }, shield: { ...shield }, menuOpen, menuTab, autopilot: cfg.autopilot,
       weapon: weaponDef.id, ship: shipDef.id, weapons: [...owned.weapons], ships: [...owned.ships],
+      world: worldDef.id, worlds: [...owned.worlds], cheatsUnlocked, tabs: menuTabs(),
       heat, overheated, bullets: bullets.length, cheat: { ...cheat } }),
-    weapon: id => setWeapon(id), ship: id => setShip(id), fire: () => tryFire(),
+    weapon: id => setWeapon(id), ship: id => setShip(id), world: id => setWorld(id), fire: () => tryFire(),
     cheat: (flag, on) => { if (flag in cheat) cheat[flag] = !!on; },
     place: (x, y, a, vx = 0, vy = 0, w = 0, noIdle = false) => {
       Object.assign(rocket, { mode: 'manual', x, y, angle: a, vx, vy, w, grounded: false, keysUsed: true, airT: 2, sleepT: 0,
@@ -3294,7 +3421,8 @@
     get menuOpen() { return menuOpen; },
     get credits() { return credits; },
     get weapon() { return weaponDef.id; },
-    get ship() { return shipDef.id; }
+    get ship() { return shipDef.id; },
+    get world() { return worldDef.id; }
   };
 
   loadSave();

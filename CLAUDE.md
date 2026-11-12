@@ -67,14 +67,15 @@ Always finish a change with `npm run validate` and `npm test`.
 - **Every control in LivelyProperties.json needs `"type"`.** One missing type breaks the *whole* Customise panel with `Control type '' is not supported`. Lively also keeps its own copy of the properties file per installed wallpaper, so a fix only shows after the user deletes the wallpaper and re-imports the zip.
 - **Canvas tainting:** the sprite is recoloured with `getImageData`. Loading `rocket.png` from `file://` would taint the canvas in Lively, so the sprite is embedded as a data URL in `src/rocket-data.js`. Keep it that way.
 - **Lively input:** keyboard input reaches the wallpaper only if the user enables it (Lively → Settings → Wallpaper → Interaction → Wallpaper Input → Keyboard). Mouse input arrives as plain mouse events, which is why the wallpaper uses `mousedown`/`mousemove` while the game uses pointer events.
-- **Key conflicts:** typed easter-egg codes (NUKE, UFO, MOO, BSOD, BEEP, Konami) share the keyboard with controls. Tab/G open the hangar menu, H toggles autopilot, Q switches weapon, so G, H and Q can't appear in codes. Check `eggKey()` before adding a key.
+- **Key conflicts:** typed easter-egg codes (NUKE, UFO, MOO, BSOD, BEEP, Konami) share the keyboard with controls. Tab/G open the hangar menu, H toggles autopilot, Q switches weapon, so G, H and Q can't appear in codes. Ctrl+Alt+Shift+G reveals the hidden Cheats tab and is checked before the plain G shortcut. Check `eggKey()` before adding a key.
 - **Focus in the game:** clicked buttons keep focus; `web/shell.js` blurs them so Space/arrows/Tab reach the engine. The engine ignores keys whose target is an INPUT/SELECT/TEXTAREA.
+- **Worlds override the colour settings.** `groundCol()/skyTopCol()/skyBotCol()` return the current world's palette and fall back to the `cfg` colours on the Moon; never read `cfg.groundColor`/`cfg.skyTop`/`cfg.skyBottom` directly. `earth` is whichever body the world puts in the sky (`BODIES`), so use `earth.name` in messages.
 - **Ship types share one hull.** `shapeShip()` only redraws the sprite; `HULL`, `restPose` and the feet are the same for every ship, and ship stats are multipliers (`thrust`, `turn`, `hull`, `cool`, `shield`). Keep a new ship's feet within a few px of the original.
 - **Physics tuning is fragile.** Landing uses rigid-body contact impulses with leg damping and a "legs bed in" settle step. Re-run the landing tally in docs/TESTING.md after changing `contactPass`, `HULL`, gravity, thrust or `settle`.
 
 ## Debug hooks (available in both builds)
 
-`window.__moonLanderDebug`: `state()`, `econ()`, `place(x,y,angle,vx,vy,w,noIdle)`, `asteroid(x,y,size)`, `sputniks(n)`, `sputnikList()`, `ufo(hunt)`, `shootUfo()`, `nuke()`, `cow()`, `bsod()`, `konami()`, `pose(x)`, `credits(n)`, `weapon(id)`, `ship(id)`, `fire()`, `cheat(flag, on)`.
+`window.__moonLanderDebug`: `state()`, `econ()`, `place(x,y,angle,vx,vy,w,noIdle)`, `asteroid(x,y,size)`, `sputniks(n)`, `sputnikList()`, `ufo(hunt)`, `shootUfo()`, `nuke()`, `cow()`, `bsod()`, `konami()`, `pose(x)`, `credits(n)`, `weapon(id)`, `ship(id)`, `world(id)`, `fire()`, `cheat(flag, on)`.
 `window.__moonLanderCapture()` resets to the start of the idle loop and stops the RAF loop; then step frames deterministically with `window.__moonLanderStep(dt)`. Used for the preview GIF and loop-seam checks.
 
 ## Where things live in src/engine.js (search for the banner comments)

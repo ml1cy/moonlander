@@ -233,8 +233,8 @@
   "cheats": {
     "type": "checkbox",
     "value": true,
-    "text": "Cheats tab in the hangar menu",
-    "help": "Shows a Cheats tab in the hangar (Tab / G): free credits, god mode, no overheating, low gravity and unlocks."
+    "text": "Allow the secret cheats menu",
+    "help": "When off, the secret key combination that reveals the Cheats tab in the hangar does nothing."
   },
   "resetProgress": {
     "text": "Reset credits, upgrades and score",
