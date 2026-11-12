@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 — 2026-11-12
+
+- **Planet natives** — every world except the Moon and Earth has its own enemies while you fly: Sun Sprites (Mercury, dive-bombers), Venusians (hover overhead and drip acid), Martians (tripods that walk the ground and fire heat rays), Ionians (lava crabs that lob arcing lava), Titans (tough, triple shots), Mirandans (ice shards that dash), Tritonians (fast orbiters) and Plutonians (teleport in, fire, vanish).
+- **Mines** — minefields drift in on any world; a mine explodes next to the ship or when shot, and its blast sets off rocks, enemies and other mines.
+- Sputniks now only attack over the Moon and Earth. New "Planet natives and mines" setting; new ALIENS counter in the HUD.
+- **Reset progress** — a RESET PROGRESS row in the hangar's Upgrades tab (press twice to confirm) wipes credits, upgrades, weapons, ships, worlds and score.
+
 ## 1.2.0 — 2026-11-12
 
 - **Solar system** — a Worlds tab in the hangar unlocks Mercury, Venus, Earth, Mars, Io, Titan, Miranda, Triton and Pluto. Each has its own terrain, colours, star density and gravity, and its own body in the sky: the Sun, the Moon, Jupiter, ringed Saturn, Uranus, Neptune or Charon.

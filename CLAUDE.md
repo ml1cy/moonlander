@@ -75,9 +75,9 @@ Always finish a change with `npm run validate` and `npm test`.
 
 ## Debug hooks (available in both builds)
 
-`window.__moonLanderDebug`: `state()`, `econ()`, `place(x,y,angle,vx,vy,w,noIdle)`, `asteroid(x,y,size)`, `sputniks(n)`, `sputnikList()`, `ufo(hunt)`, `shootUfo()`, `nuke()`, `cow()`, `bsod()`, `konami()`, `pose(x)`, `credits(n)`, `weapon(id)`, `ship(id)`, `world(id)`, `fire()`, `cheat(flag, on)`.
+`window.__moonLanderDebug`: `state()`, `econ()`, `place(x,y,angle,vx,vy,w,noIdle)`, `asteroid(x,y,size)`, `sputniks(n)`, `sputnikList()`, `ufo(hunt)`, `shootUfo()`, `nuke()`, `cow()`, `bsod()`, `konami()`, `pose(x)`, `credits(n)`, `weapon(id)`, `ship(id)`, `world(id)`, `fire()`, `cheat(flag, on)`, `foes(type, n)`, `foeList()`, `foeTypes()`, `hitFoe()`.
 `window.__moonLanderCapture()` resets to the start of the idle loop and stops the RAF loop; then step frames deterministically with `window.__moonLanderStep(dt)`. Used for the preview GIF and loop-seam checks.
 
 ## Where things live in src/engine.js (search for the banner comments)
 
-`config` → `helpers` → `canvas & world` (build, terrain, ridge, sky, stars) → `Earth` → `ship sprite & colours` → `particles` → `shooting stars` → `asteroids` → `rocket` (+ `autopilot`, `clean loop`) → `manual flight (rigid body)` → `drag & throw` → `crash & respawn` → `weapons & bullets` → `UFO` → `Sputniks` → `easter eggs` → `credits & upgrades` (+ menu) → `HUD & toasts` → `collisions` → `camera` → `input` → `main loop` → `hooks` → `public API`.
+`config` → `helpers` → `canvas & world` (build, terrain, ridge, sky, stars) → `Earth` → `ship sprite & colours` → `particles` → `shooting stars` → `asteroids` → `rocket` (+ `autopilot`, `clean loop`) → `manual flight (rigid body)` → `drag & throw` → `crash & respawn` → `weapons & bullets` → `UFO` → `Sputniks` → `natives & mines` → `easter eggs` → `credits & upgrades` (+ menu) → `HUD & toasts` → `collisions` → `camera` → `input` → `main loop` → `hooks` → `public API`.

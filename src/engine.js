@@ -52,6 +52,7 @@
     worldSize: 3,           // screens wide
     aliens: true,
     sputniks: true,
+    natives: true,
     eggs: true,
     cheats: true,
     bodyColor: '#bdc6cb',
@@ -125,6 +126,7 @@
       case 'worldSize': cfg.worldSize = [1, 3, 5][Number(val)] || 3; needsRebuild = true; break;
       case 'aliens': cfg.aliens = !!val; break;
       case 'eggs': cfg.eggs = !!val; break;
+      case 'natives': cfg.natives = !!val; if (!val) foes.length = 0; break;
       case 'cheats': cfg.cheats = !!val; break;
       case 'sputniks': cfg.sputniks = !!val; if (!val) sputniks.length = 0; break;
       case 'bodyColor': cfg.bodyColor = val; needsShip = true; break;
@@ -280,7 +282,7 @@
     buildFlame();
 
     particles.length = 0; shooting.length = 0; asteroids.length = 0; bullets.length = 0;
-    plasma.length = 0; cows.length = 0; escapees.length = 0; sputniks.length = 0;
+    plasma.length = 0; cows.length = 0; escapees.length = 0; sputniks.length = 0; foes.length = 0;
     ufo = null; missile = null;
     resetRocket();
     buildLoop(rng);
@@ -1481,7 +1483,7 @@
   }
 
   // ================================================================ manual flight (rigid body)
-  const score = { stars: 0, rocks: 0, ufos: 0, sputniks: 0, landings: 0 };
+  const score = { stars: 0, rocks: 0, ufos: 0, sputniks: 0, aliens: 0, landings: 0 };
   const keys = { up: false, left: false, right: false, down: false, fire: false };
   let lastKeyTime = -1e9;
   let lastInteract = -1e9;
@@ -1837,6 +1839,7 @@
     const consider = (x, y) => { const d = Math.hypot(wd(x - b.x), y - b.y); if (d < bd) { bd = d; best = { x, y }; } };
     for (const a of asteroids) consider(a.x, a.y);
     for (const sn of sputniks) consider(sn.x, sn.y);
+    for (const f of foes) if (f.a > 0.4) consider(f.x, f.y);
     if (ufo) consider(ufo.x, ufo.y);
     let sp = Math.hypot(b.vx, b.vy) || 1, ang = Math.atan2(b.vy, b.vx);
     if (best) {
@@ -1862,6 +1865,12 @@
       if (!sputHit(sn, x, y, R)) continue;
       damageSputnik(j);
       if (sputniks[j] === sn) damageSputnik(j);
+    }
+    for (let j = foes.length - 1; j >= 0; j--) {
+      const f = foes[j];                       // a mine set off here can remove others, so re-check the index
+      if (!f || !foeHit(f, x, y, R)) continue;
+      damageFoe(j);
+      if (foes[j] === f) damageFoe(j);
     }
     if (ufo && ufoHit(x, y, R)) { damageUfo(); damageUfo(); }
     for (let i = 0; i < 22; i++) {
@@ -1903,6 +1912,13 @@
           if ((b.hit && b.hit.has(sn)) || !sputHit(sn, b.x, b.y, 1.5)) continue;
           if (b.hit) b.hit.add(sn);
           if (!isMissile) { damageSputnik(j, b.vx * k, b.vy * k); if (b.pierce && sputniks[j] === sn) damageSputnik(j); }
+          hit = true;
+        }
+        for (let j = foes.length - 1; j >= 0 && (!hit || b.pierce); j--) {
+          const f = foes[j];
+          if (!f || (b.hit && b.hit.has(f)) || !foeHit(f, b.x, b.y, 1.5)) continue;
+          if (b.hit) b.hit.add(f);
+          if (!isMissile) { damageFoe(j, b.vx * k, b.vy * k); if (b.pierce && foes[j] === f) damageFoe(j); }
           hit = true;
         }
         if (hit && !b.pierce) dead = true;
@@ -1974,6 +1990,7 @@
 
     for (let i = plasma.length - 1; i >= 0; i--) {
       const p = plasma[i];
+      if (p.g) p.vy += p.g * dt;
       p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt;
       let dead = p.life <= 0 || p.y > groundY(p.x);
       if (!dead && visibleRocket() && rocket.mode !== 'abducted' && Math.hypot(wd(p.x - rocket.x), p.y - rocket.y) < 12 * RS) {
@@ -1985,7 +2002,7 @@
       if (dead) {
         for (let k = 0; k < 6; k++) spawn({ kind: 'spark', front: true, x: p.x, y: Math.min(p.y, groundY(p.x) - 1),
           vx: rand(-1, 1) * H * 0.12, vy: rand(-1, 0.3) * H * 0.12, g: 0, drag: 0.92, life: rand(0.2, 0.5), age: 0,
-          s0: 2, s1: 1, col: '#9dff7a', hit: true });
+          s0: 2, s1: 1, col: p.col || '#9dff7a', hit: true });
         plasma.splice(i, 1);
       }
     }
@@ -2227,7 +2244,7 @@
 
   function updateSputniks(dt) {
     const flying = rocket.mode === 'manual' || rocket.mode === 'drag';
-    if (cfg.sputniks && flying && !sputniks.length) {
+    if (cfg.sputniks && flying && !sputniks.length && !NATIVES[worldDef.id]) {
       sputTimer -= dt;
       if (sputTimer <= 0) { sputTimer = rand(30, 60); spawnSputniks(1 + Math.floor(Math.random() * 3)); }
     }
@@ -2318,6 +2335,275 @@
       ctx.fillRect(x - 1, y - 1, 1, 1);
       ctx.fillStyle = '#10131a';
       ctx.fillRect(x - 1, y - 4, 1, 1); ctx.fillRect(x + 1, y - 4, 1, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ================================================================ natives & mines (planet-specific enemies)
+  // Like the Sputniks, these only appear while the player is flying and leave when autopilot
+  // takes over. Each world has its own natives; mines drift in anywhere.
+  //   ai: walker (walks the terrain, shoots up) | hover (circles or sits above the ship, shoots)
+  //       diver (lines up, then dashes through the ship) | blinker (teleports in, shoots, vanishes)
+  //       mine (drifts closer, explodes next to the ship or when shot)
+  //   shot: aim | spread (3 aimed) | drop (falls from above) | lob (arcs under gravity)
+  const FOE_TYPES = {
+    mine: { name: 'MINES', ai: 'mine', hp: 1, reward: 5, r: 4, count: [3, 5], col: '#ff5a3a',
+      pal: { a: '#7d8496', c: '#c9ced8', k: '#3a3f4d', e: '#ff3b3b' },
+      rows: ['k..k..k', '.kaaak.', '.aacaa.', 'kaceack', '.aaaaa.', '.kaaak.', 'k..k..k'] },
+    sunsprite: { name: 'SUN SPRITES', ai: 'diver', hp: 1, reward: 12, r: 4, count: [2, 4], col: '#ff9a2a',
+      pal: { a: '#ff9a2a', c: '#ffe07a', e: '#3a1400' },
+      rows: ['..cac..', '.caaac.', 'caeaeac', 'aaaaaaa', 'caaaaac', '.caaac.', '..cac..'] },
+    venusian: { name: 'VENUSIANS', ai: 'hover', above: true, hp: 3, reward: 18, r: 6, speed: 0.22, fire: [1.1, 2], shot: 'drop', count: [1, 2],
+      col: '#c8f03a', cry: 'BLORP',
+      pal: { a: '#e8d27a', b: '#b08a3a', c: '#fff3c0', e: '#ffffff', k: '#2a1c00' },
+      rows: ['...ccc..cc...', '.ccaaaccaac..', 'caaaaaaaaaac.', 'caaekaaekaaac', 'caaaaaaaaaaac', '.baaabbaaabb.', '..bbb..bbb...'] },
+    martian: { name: 'MARTIANS', ai: 'walker', hp: 3, reward: 20, r: 6, speed: 0.1, fire: [1.4, 2.4], shot: 'aim', shotSp: 0.42, count: [1, 2],
+      col: '#ff5a3a', cry: 'ULLA',
+      pal: { a: '#6fbf5a', b: '#3d7a3a', c: '#b8f0a0', e: '#ff3b3b', k: '#1d1b1f' },
+      rows: ['...aaaaa...', '..acccaaa..', '.aaekeaaab.', '.aaaaaaabb.', '..abbbbbb..', '...b.b.b...', '..b..b..b..', '..b..b..b..',
+        '.b...b...b.', '.b...b...b.', 'b....b....b'] },
+    ionian: { name: 'IONIANS', ai: 'walker', hp: 2, reward: 15, r: 5, speed: 0.14, fire: [1.6, 2.8], shot: 'lob', count: [2, 3],
+      col: '#ff9a2a', cry: 'HISS',
+      pal: { a: '#e0582a', b: '#8a2c14', e: '#ffe07a', k: '#1d1b1f' },
+      rows: ['a.........a', 'a..aaaaa..a', '.aaekaekaa.', '.aaaaaaaaa.', '..abbbbba..', '.b.b...b.b.', 'b..b...b..b'] },
+    titan: { name: 'TITANS', ai: 'hover', orbitW: 0.35, hp: 4, reward: 22, r: 5, speed: 0.16, fire: [2, 3.2], shot: 'spread', count: [1, 2],
+      col: '#ffb04a', cry: 'GLUB',
+      pal: { a: '#d88a3a', b: '#8a5420', c: '#ffd9a0', e: '#2a1400' },
+      rows: ['..ccccc..', '.caaaaac.', 'caaeaeaac', 'caaaaaaac', 'cabababac', '.b.b.b.b.', '.b.b.b.b.', '..b...b..', '..b...b..'] },
+    mirandan: { name: 'MIRANDANS', ai: 'diver', hp: 1, reward: 12, r: 4, count: [3, 4], col: '#bff4ff',
+      pal: { a: '#8fd8e8', b: '#4a9ab0', c: '#e8fcff', e: '#10303a' },
+      rows: ['...c...', '..cac..', '..cac..', '.caaac.', '.caeac.', '.cabac.', '..bab..', '..bab..', '...b...'] },
+    tritonian: { name: 'TRITONIANS', ai: 'hover', orbitW: 0.9, hp: 2, reward: 16, r: 5, speed: 0.34, fire: [1.4, 2.4], shot: 'aim', shotSp: 0.34, count: [2, 3],
+      col: '#6f9bff', cry: 'BLUB',
+      pal: { a: '#d77ab0', b: '#8a3a6a', e: '#ffffff' },
+      rows: ['...aaa...', '..aaaaa..', '.aaeaaea.', '.aaaaaaa.', '.aaaaaaa.', '..aaaaa..', '.b.b.b.b.', '.b.b.b.b.', 'b..b.b..b'] },
+    plutonian: { name: 'PLUTONIANS', ai: 'blinker', hp: 2, reward: 18, r: 5, shot: 'spread', shotSp: 0.28, count: [2, 3],
+      col: '#d8b8ff', cry: 'STILL A PLANET',
+      pal: { a: '#cdb8f0', e: '#ffffff', k: '#2a1c4a' },
+      rows: ['a.......a', '.a.aaa.a.', '..aaaaa..', '.aaeeeaa.', '.aaekeaa.', '.aaeeeaa.', '..aaaaa..', '..a.a.a..', '.a..a..a.'] }
+  };
+  // Which natives live where. Worlds without natives (Moon, Earth) get Sputniks instead.
+  const NATIVES = {
+    mercury: 'sunsprite', venus: 'venusian', mars: 'martian', io: 'ionian',
+    titan: 'titan', miranda: 'mirandan', triton: 'tritonian', pluto: 'plutonian'
+  };
+  const foes = [];
+  let foeTimer = rand(12, 20);
+  let foeWave = null;       // { size, killed }
+  const foeUnit = () => 2 * Math.max(1, Math.round(S));     // sprites are drawn at twice the art-pixel scale
+
+  function foeSprite(def) {
+    if (def.spr) return def.spr;
+    const w = def.rows[0].length, h = def.rows.length;
+    const cv = makeCanvas(w, h), wh = makeCanvas(w, h), g = cv.getContext('2d'), g2 = wh.getContext('2d');
+    g2.fillStyle = '#ffffff';
+    def.rows.forEach((row, y) => {
+      for (let x = 0; x < w; x++) {
+        const col = def.pal[row[x]];
+        if (!col) continue;
+        g.fillStyle = col; g.fillRect(x, y, 1, 1); g2.fillRect(x, y, 1, 1);
+      }
+    });
+    return (def.spr = { cv, wh, w, h });
+  }
+
+  function spawnFoes(type, n) {
+    const def = FOE_TYPES[type];
+    if (!def || !ground || !visibleRocket()) return;
+    n = Math.min(n || Math.round(rand(def.count[0], def.count[1])), 8 - foes.length);
+    if (n <= 0) return;
+    const side = Math.random() < 0.5 ? -1 : 1, u = foeUnit();
+    for (let i = 0; i < n; i++) {
+      const f = { type, def, hp: def.hp, hitT: 0, t: 0, st: 0, life: 50, state: 'hunt', sub: '', x: 0, y: 0, vx: 0, vy: 0, a: 1,
+        fireT: def.fire ? rand(def.fire[0], def.fire[1]) : 0, cryT: rand(1, 5), oa: rand(0, TAU), phase: rand(0, TAU), wait: rand(1, 2.2) };
+      if (def.ai === 'walker') {
+        f.x = wrapX(cam.x + (side < 0 ? -20 * S : W + 20 * S) + side * i * 26 * S);
+        f.y = groundY(f.x) - foeSprite(def).h * u / 2 + 1;
+        f.keep = rand(55, 110) * S;
+      } else if (def.ai === 'mine') {
+        const ang = rand(-Math.PI, 0), dist = rand(85, 160) * S * RS;
+        f.x = wrapX(rocket.x + Math.cos(ang) * dist);
+        f.y = Math.min(rocket.y + Math.sin(ang) * dist, groundY(f.x) - 20 * S);
+        f.a = 0;
+      } else if (def.ai === 'blinker') {
+        f.a = 0; f.sub = 'hidden'; f.wait = rand(0.2, 1.2);
+      } else {
+        f.x = wrapX(cam.x + (side < 0 ? -30 : W + 30) * S + side * i * 18 * S);
+        f.y = cam.y + H * rand(0.08, 0.35);
+        f.vx = -side * H * 0.2;
+      }
+      foes.push(f);
+    }
+    foeWave = { size: n, killed: 0 };
+    toast(def.ai === 'mine' ? 'MINEFIELD AHEAD' : 'INCOMING ' + def.name, 2, '#ff6b5b');
+  }
+
+  function foeHit(f, x, y, pad) {
+    return f.a > 0.4 && Math.hypot(wd(x - f.x), y - f.y) < f.def.r * foeUnit() + pad;
+  }
+
+  // Something hit the ship: shield first, then a crash, otherwise a shove.
+  function hurtRocket(kx, ky) {
+    if (!visibleRocket() || rocket.mode === 'abducted' || shieldAbsorb()) return;
+    if (cfg.crashes) explodeRocket();
+    else if (rocket.mode === 'manual') { rocket.vx += kx; rocket.vy += ky; rocket.w += rand(-2, 2); rocket.grounded = false; }
+  }
+
+  function damageFoe(i, ix = 0, iy = 0, byPlayer = true) {
+    const f = foes[i], def = f.def;
+    f.hp--; f.hitT = 0.12;
+    if (def.ai !== 'walker') { f.vx += ix * 0.3; f.vy += iy * 0.3; }
+    for (let k = 0; k < 6; k++) spawn({ kind: 'spark', front: true, x: f.x, y: f.y, col: def.col,
+      vx: rand(-1, 1) * H * 0.18, vy: rand(-1, 1) * H * 0.18, g: 0, drag: 0.92, life: rand(0.2, 0.4), age: 0, s0: 2, s1: 1, hit: true });
+    if (f.hp > 0) return;
+    foes.splice(i, 1);
+    for (let k = 0; k < 24; k++) {
+      const ang = Math.random() * TAU, sp = rand(0.05, 0.3) * H;
+      spawn({ kind: 'fire', front: true, x: f.x, y: f.y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, g: -H * 0.02, col: k % 2 ? def.col : null,
+        drag: 0.93, life: rand(0.3, 0.9), age: 0, s0: 2, s1: rand(3, 5), hit: true, noGround: true });
+    }
+    debrisBurst(f.x, f.y, 12, H * 0.25, f.vx * 0.5, f.vy * 0.5, Object.values(def.pal));
+    flash = Math.max(flash, 0.15);
+    if (byPlayer) {
+      score.aliens++;
+      earn(def.reward, f.x, f.y);
+      if (foeWave && ++foeWave.killed >= foeWave.size && foeWave.size > 1) {
+        toast(def.name + ' DEFEATED', 2, '#9dff7a');
+        earn(20, rocket.x, rocket.y - 40 * RS);
+        foeWave = null;
+      }
+    }
+    if (def.ai === 'mine') {
+      blastAt(f.x, f.y);                       // sets off rocks, enemies and other mines nearby
+      const dx = wd(rocket.x - f.x), dy = rocket.y - f.y, d = Math.hypot(dx, dy) || 1;
+      if (d < 42 * S * RS) hurtRocket(dx / d * H * 0.35, dy / d * H * 0.35);
+    }
+  }
+
+  function foeFire(f) {
+    const def = f.def, u = foeUnit(), oy = f.y - (def.ai === 'walker' ? foeSprite(def).h * u / 2 : 0);
+    const dx = wd(rocket.x - f.x), dy = rocket.y - oy, d = Math.hypot(dx, dy) || 1;
+    if (d > W * 0.7) return;
+    const sp = H * (def.shotSp || 0.3);
+    const shot = (vx, vy, g = 0) => plasma.push({ x: f.x, y: oy, vx, vy, g, life: 3.5, col: def.col, core: '#ffffff' });
+    if (def.shot === 'drop') shot(rocket.vx * 0.3 + rand(-1, 1) * H * 0.03, H * 0.05, H * 0.3);
+    else if (def.shot === 'lob') { const T = 1.5, g = H * 0.3; shot(dx / T, (dy - 0.5 * g * T * T) / T, g); }
+    else if (def.shot === 'spread') { const a = Math.atan2(dy, dx); for (const o of [-0.28, 0, 0.28]) shot(Math.cos(a + o) * sp, Math.sin(a + o) * sp); }
+    else shot(dx / d * sp, dy / d * sp);
+  }
+
+  // Spring towards a point, capped at maxSp, staying above the ground.
+  function foeSteer(f, tx, ty, maxSp, dt) {
+    f.vx += (wd(tx - f.x) * 3 - f.vx * 1.6) * dt; f.vy += ((ty - f.y) * 3 - f.vy * 1.6) * dt;
+    const sp = Math.hypot(f.vx, f.vy);
+    if (sp > maxSp) { f.vx *= maxSp / sp; f.vy *= maxSp / sp; }
+    foeMove(f, dt);
+  }
+  function foeMove(f, dt) {
+    f.x = wrapX(f.x + f.vx * dt); f.y += f.vy * dt;
+    const floor = groundY(f.x) - (f.def.r + 2) * foeUnit();
+    if (f.y > floor) { f.y = floor; f.vy = -Math.abs(f.vy) * 0.5; }
+  }
+
+  function updateFoes(dt) {
+    const flying = rocket.mode === 'manual' || rocket.mode === 'drag';
+    if (cfg.natives && flying && !foes.length) {
+      foeTimer -= dt;
+      if (foeTimer <= 0) {
+        foeTimer = rand(22, 40);
+        const nat = NATIVES[worldDef.id];
+        spawnFoes(nat && Math.random() < 0.75 ? nat : 'mine');
+      }
+    }
+    const giveUp = !flying || !visibleRocket() || rocket.mode === 'abducted';
+    const u = foeUnit();
+
+    for (let i = foes.length - 1; i >= 0; i--) {
+      const f = foes[i];
+      if (!f) continue;               // a mine blast earlier in this loop can shorten the list
+      const def = f.def;
+      f.t += dt; f.st += dt; f.life -= dt; f.hitT -= dt;
+      if ((giveUp || f.life <= 0) && f.state !== 'leave') { f.state = 'leave'; f.st = 0; }
+      const dx = wd(rocket.x - f.x), dy = rocket.y - f.y, d = Math.hypot(dx, dy) || 1;
+
+      if (f.state === 'leave') {
+        if (def.ai === 'walker') { f.y += H * 0.07 * dt; if (f.st > 1.6) foes.splice(i, 1); }       // burrows away
+        else if (def.ai === 'mine' || def.ai === 'blinker') { f.a -= dt * 1.5; if (f.a <= 0) foes.splice(i, 1); }
+        else {
+          f.vx += (f.vx >= 0 ? 1 : -1) * H * 0.4 * dt; f.vy -= H * 0.5 * dt;
+          f.x = wrapX(f.x + f.vx * dt); f.y += f.vy * dt;
+          if (f.y < cam.y - 60 * S || Math.abs(wd(f.x - (cam.x + W / 2))) > W) foes.splice(i, 1);
+        }
+        continue;
+      }
+
+      switch (def.ai) {
+        case 'walker': {
+          const want = Math.abs(dx) > f.keep ? Math.sign(dx) : Math.abs(dx) < f.keep * 0.6 ? -Math.sign(dx) : 0;
+          f.x = wrapX(f.x + want * H * def.speed * dt);
+          f.y = groundY(f.x) - foeSprite(def).h * u / 2 + 1;
+          break;
+        }
+        case 'hover': {
+          f.oa += (def.orbitW || 0) * dt;
+          const R = (def.above ? 95 : 80) * S * RS;
+          const tx = rocket.x + (def.above ? Math.sin(f.t * 0.7 + f.phase) * 30 * S : Math.cos(f.oa) * R);
+          const ty = rocket.y + (def.above ? -R : Math.sin(f.oa) * R * 0.6);
+          foeSteer(f, tx, ty, H * def.speed, dt);
+          break;
+        }
+        case 'diver':
+          if (f.sub !== 'dash') {              // line up beside the ship, then go
+            foeSteer(f, rocket.x + Math.cos(f.oa) * 110 * S * RS, rocket.y - (20 + 70 * Math.abs(Math.sin(f.oa))) * S * RS, H * 0.4, dt);
+            if (f.st > f.wait && d < W * 0.6) { f.sub = 'dash'; f.st = 0; f.vx = dx / d * H * 0.75; f.vy = dy / d * H * 0.75; }
+          } else {
+            foeMove(f, dt);
+            if (Math.random() < dt * 40) spawn({ kind: 'fire', x: f.x, y: f.y, col: def.col, vx: rand(-1, 1) * H * 0.02, vy: rand(-1, 1) * H * 0.02,
+              g: 0, drag: 0.9, life: rand(0.2, 0.5), age: 0, s0: 2, s1: 1 });
+            if (f.st > 0.9) { f.sub = ''; f.st = 0; f.wait = rand(1.2, 2.4); f.oa = rand(0, TAU); }
+          }
+          break;
+        case 'blinker':
+          if (f.sub === 'hidden') {
+            f.a = 0;
+            if (f.st > f.wait) {
+              const ang = rand(-Math.PI, 0), dist = rand(70, 115) * S * RS;
+              f.x = wrapX(rocket.x + Math.cos(ang) * dist);
+              f.y = Math.min(rocket.y + Math.sin(ang) * dist, groundY(f.x) - 12 * S);
+              f.sub = 'in'; f.st = 0;
+            }
+          } else if (f.sub === 'in') { f.a = Math.min(1, f.st / 0.4); if (f.st > 0.4) { f.sub = 'aim'; f.st = 0; } }
+          else if (f.sub === 'aim') { f.a = 1; if (f.st > 0.8) { foeFire(f); f.sub = 'out'; f.st = 0; } }
+          else { f.a = Math.max(0, 1 - f.st / 0.4); if (f.st > 0.4) { f.sub = 'hidden'; f.st = 0; f.wait = rand(0.8, 1.8); } }
+          break;
+        case 'mine':
+          f.a = Math.min(1, f.a + dt * 2);
+          f.x = wrapX(f.x + dx / d * H * 0.05 * dt); f.y += (dy / d * H * 0.05 + Math.sin(f.t * 2 + f.phase) * 3 * S) * dt;
+          if (f.sub === 'fuse') { if (f.st > 0.45) { damageFoe(i, 0, 0, false); continue; } }
+          else if (d < 32 * S * RS) { f.sub = 'fuse'; f.st = 0; }
+          break;
+      }
+
+      if (def.fire && def.ai !== 'blinker') {
+        f.fireT -= dt;
+        if (f.fireT <= 0) { f.fireT = rand(def.fire[0], def.fire[1]); foeFire(f); }
+      }
+      if (def.cry && f.a > 0.5) {
+        f.cryT -= dt;
+        if (f.cryT <= 0) { f.cryT = rand(3, 7); floaters.push({ x: f.x, y: f.y - (def.r + 6) * u, t: 0.3, text: def.cry, col: def.col }); }
+      }
+    }
+    if (!foes.length) foeWave = null;
+  }
+
+  function drawFoes() {
+    const u = foeUnit();
+    for (const f of foes) {
+      const spr = foeSprite(f.def), cx = Math.round(sxOf(f.x)), cy = Math.round(syOf(f.y));
+      if (f.a <= 0 || cx < -40 || cx > W + 40 || cy < -40 || cy > H + 40) continue;
+      const lit = f.hitT > 0 || (f.sub === 'fuse' && Math.floor(time * 16) % 2) || (f.sub === 'aim' && f.st > 0.6);
+      ctx.globalAlpha = clamp(f.a, 0, 1);
+      ctx.drawImage(lit ? spr.wh : spr.cv, cx - Math.round(spr.w * u / 2), cy - Math.round(spr.h * u / 2), spr.w * u, spr.h * u);
     }
     ctx.globalAlpha = 1;
   }
@@ -2557,7 +2843,7 @@
   const cheat = { god: false, noHeat: false, lowGrav: false };
   const cheating = () => cheat.god || cheat.noHeat || cheat.lowGrav;
   function clearEnemies() {
-    asteroids.length = 0; sputniks.length = 0; plasma.length = 0; wave = null;
+    asteroids.length = 0; sputniks.length = 0; foes.length = 0; plasma.length = 0; wave = null; foeWave = null;
     if (ufo && rocket.mode !== 'abducted' && rocket.mode !== 'taken') ufo = null;
   }
   const CHEATS = [
@@ -2683,7 +2969,7 @@
   }
 
   // ---------------------------------------------------------------- hangar menu (upgrades, weapons, ships, cheats)
-  let menuOpen = false, menuHover = -1, menuMsg = '', menuMsgT = 0, menuTab = 0;
+  let menuOpen = false, menuHover = -1, menuMsg = '', menuMsgT = 0, menuTab = 0, resetArmT = -1e9;
   const MENU_MAX_ROWS = 11;                         // number keys 1-9 and 0 pick the first ten rows
   const menuTabs = () => cfg.cheats && cheatsUnlocked ? ['UPGRADES', 'WEAPONS', 'SHIPS', 'WORLDS', 'CHEATS'] : ['UPGRADES', 'WEAPONS', 'SHIPS', 'WORLDS'];
 
@@ -2736,6 +3022,13 @@
       });
       rows.push({ name: 'AUTOPILOT', desc: 'FLIES THE SHIP HOME AFTER ' + cfg.idleReturn + ' S IDLE. H TOGGLES',
         ...toggle(cfg.autopilot), act: () => toggleAutopilot() });
+      const armed = time - resetArmT < 4;
+      rows.push({ name: 'RESET PROGRESS', desc: 'WIPES CREDITS, UPGRADES, WEAPONS, SHIPS, WORLDS AND SCORE',
+        right: armed ? 'SURE? PRESS AGAIN' : '', col: '#ff6b5b',
+        act: () => {
+          if (!armed) { resetArmT = time; menuFlash('PRESS AGAIN TO WIPE EVERYTHING'); return; }
+          resetArmT = -1e9; resetProgress(); menuFlash('PROGRESS RESET');
+        } });
     } else if (tab === 'WEAPONS') rows = WEAPONS.map(w => shopRow(w, owned.weapons, weaponDef, setWeapon));
     else if (tab === 'SHIPS') rows = SHIPS.map(sh => shopRow(sh, owned.ships, shipDef, setShip));
     else if (tab === 'WORLDS') rows = WORLDS.map(wl => shopRow(wl, owned.worlds, worldDef, setWorld, 'HERE'));
@@ -2772,7 +3065,7 @@
   function menuSetTab(i) {
     const n = menuTabs().length;
     menuTab = mod(i, n);
-    menuHover = -1; menuMsgT = 0;
+    menuHover = -1; menuMsgT = 0; resetArmT = -1e9;
   }
 
   function menuActivate(i) {
@@ -2782,7 +3075,7 @@
 
   function toggleMenu(open) {
     menuOpen = open ?? !menuOpen;
-    menuHover = -1;
+    menuHover = -1; resetArmT = -1e9;
     for (const k in keys) keys[k] = false;
     noteInteract();
   }
@@ -2896,7 +3189,7 @@
 
     if (hudAlpha > 0.02) {
       ctx.globalAlpha = hudAlpha;
-      drawText('STARS ' + score.stars + '  ROCKS ' + score.rocks + '  UFOS ' + score.ufos + '  SPUTNIKS ' + score.sputniks + '  LANDINGS ' + score.landings, 6, 6, '#e8ecff');
+      drawText('STARS ' + score.stars + '  ROCKS ' + score.rocks + '  UFOS ' + score.ufos + '  SPUTNIKS ' + score.sputniks + '  ALIENS ' + score.aliens + '  LANDINGS ' + score.landings, 6, 6, '#e8ecff');
       let y = 14;
       if (rocket.mode === 'return') { drawText('AUTOPILOT FLYING HOME', 6, y, '#7ff0ff'); y += 8; }
       else { drawText('AUTOPILOT ' + (cfg.autopilot ? 'ON' : 'OFF'), 6, y, cfg.autopilot ? '#5f7fa8' : '#ffb36b'); y += 8; }
@@ -2973,6 +3266,22 @@
         if (sputniks[i] === s) { s.state = 'orbit'; s.diveT = rand(4, 7); s.vx = -dx / d * H * 0.3; s.vy = -dy / d * H * 0.3; }
         if (rocket.mode !== 'manual' || shieldAbsorb()) continue;
         if (cfg.crashes && Math.hypot(rocket.vx - s.vx, rocket.vy - s.vy) > H * 0.5) { explodeRocket(); return; }
+        rocket.grounded = false;
+        rocket.vx += dx / d * H * 0.2; rocket.vy += dy / d * H * 0.2;
+        rocket.w += rand(-2, 2);
+      }
+    }
+    if (active) {
+      // natives: ramming hurts both sides (mines have their own fuse)
+      for (let i = foes.length - 1; i >= 0; i--) {
+        const f = foes[i];
+        if (!f || f.a < 0.4 || f.def.ai === 'mine' || !hitRocketBody({ x: f.x, y: f.y, r: f.def.r * foeUnit() })) continue;
+        const dx = wd(rocket.x - f.x), dy = rocket.y - f.y, d = Math.hypot(dx, dy) || 1;
+        const rel = Math.hypot(rocket.vx - f.vx, rocket.vy - f.vy);
+        damageFoe(i, -dx / d * H * 0.3, -dy / d * H * 0.3);
+        if (foes[i] === f && f.def.ai === 'diver') { f.sub = ''; f.st = 0; f.wait = rand(1.5, 2.5); }
+        if (rocket.mode !== 'manual' || shieldAbsorb()) continue;
+        if (cfg.crashes && rel > H * 0.5) { explodeRocket(); return; }
         rocket.grounded = false;
         rocket.vx += dx / d * H * 0.2; rocket.vy += dy / d * H * 0.2;
         rocket.w += rand(-2, 2);
@@ -3081,6 +3390,9 @@
     if (ufo && ufoHit(wx, wy, 3)) { damageUfo(); return; }
     for (let i = sputniks.length - 1; i >= 0; i--) {
       if (sputHit(sputniks[i], wx, wy, 4)) { damageSputnik(i); return; }
+    }
+    for (let i = foes.length - 1; i >= 0; i--) {
+      if (foeHit(foes[i], wx, wy, 4)) { damageFoe(i); return; }
     }
     for (let i = asteroids.length - 1; i >= 0; i--) {
       const a = asteroids[i];
@@ -3213,6 +3525,7 @@
     updateBullets(dt);
     updateUfo(dt);
     updateSputniks(dt);
+    updateFoes(dt);
     updateCollisions();
     updateParticles(dt);
     updateShooting(dt, !looping);
@@ -3292,6 +3605,7 @@
     drawShield();
     drawUfo();
     drawSputniks();
+    drawFoes();
     drawEscapees();
     drawParticles(true);
     drawFloaters();
@@ -3366,7 +3680,7 @@
     cancelAnimationFrame(raf); raf = 0;
     if (needsRebuild) build();
     particles.length = 0; shooting.length = 0; asteroids.length = 0; bullets.length = 0;
-    ufo = null; missile = null; cows.length = 0; plasma.length = 0; toasts.length = 0; sputniks.length = 0;
+    ufo = null; missile = null; cows.length = 0; plasma.length = 0; toasts.length = 0; sputniks.length = 0; foes.length = 0;
     rocket.mode = 'auto'; hudAlpha = 0; turboT = 0; menuOpen = false; floaters.length = 0;
     earth.state = 'ok';
     cam.x = 0; cam.y = 0;
@@ -3384,6 +3698,8 @@
       toasts: toasts.map(t => t.text), turbo: turboT
     }),
     asteroid: (x, y, size) => spawnAsteroid({ x, y, vx: 0, vy: 0, size, spin: 0.5 }),
+    foes: (type, n) => spawnFoes(type, n), foeList: () => foes.map(f => ({ type: f.type, x: f.x, y: f.y, hp: f.hp, state: f.state, sub: f.sub })),
+    foeTypes: () => Object.keys(FOE_TYPES), hitFoe: () => { if (foes.length) damageFoe(foes.length - 1); },
     sputniks: n => spawnSputniks(n), sputnikList: () => sputniks.map(s => ({ x: s.x, y: s.y, state: s.state, hp: s.hp })),
     ufo: (hunt) => spawnUfo(hunt), shootUfo: () => damageUfo(), nuke: () => launchNuke(), cow: () => spawnCow(cam.x + W * 0.3),
     bsod: () => bsodEarth(), konami: () => konami(), pose: x => restPose(x),

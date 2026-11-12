@@ -76,10 +76,11 @@ To add an upgrade: add an entry to `UPGRADES`, a key to `up`, and read `up.<id>`
 
 - **Asteroids** — ambient; click, shoot or ram. Sizes split 2 → 1 → 0.
 - **UFO** — visits while playing; hunts the ship with a tractor beam (abduction → returned later, or rescued if shot down). Fires plasma when angry. 3 HP.
-- **Sputniks** — squadrons of 1–3 while flying manually; orbit the ship, fire pellets, dive to ram. 2 HP. Retreat when autopilot engages.
+- **Sputniks** — squadrons of 1–3 while flying manually over the Moon or Earth; orbit the ship, fire pellets, dive to ram. 2 HP. Retreat when autopilot engages.
+- **Natives & mines** (`FOE_TYPES`, `foes[]`) — one generic enemy system. A type is data: a pixel sprite (`rows` + `pal`, drawn at `foeUnit()` scale), `hp`, `reward`, hit radius `r`, an `ai` (`walker`, `hover`, `diver`, `blinker`, `mine`) and optionally a `shot` pattern (`aim`, `spread`, `drop`, `lob`). `NATIVES` maps a world id to its type; worlds without an entry (Moon, Earth) get Sputniks. `updateFoes` spawns a native wave (or a minefield, 25 % of the time and always on worlds without natives) only while the player is flying, and switches everything to `leave` when autopilot takes over. To add an enemy: add a `FOE_TYPES` entry and, for a world's native, a `NATIVES` entry. Bullets, missiles, blasts, clicks and ramming all go through `foeHit` / `damageFoe`.
 - **Easter eggs** — NUKE / Earth ×5 click, UFO, MOO / triple-click ground, BSOD, BEEP, Konami code.
 
-Projectiles that hurt the ship go in `plasma[]` (`col`/`core` set the colour); the hit logic there already handles shields, crashes and knockback.
+Projectiles that hurt the ship go in `plasma[]` (`col`/`core` set the colour, `g` adds gravity for arcing shots); the hit logic there already handles shields, crashes and knockback.
 
 ## Game shell (web/shell.js)
 

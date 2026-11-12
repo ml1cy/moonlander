@@ -223,7 +223,13 @@
     "type": "checkbox",
     "value": true,
     "text": "Sputnik attacks",
-    "help": "Enemy Sputnik squadrons attack while you're flying the ship yourself. They retreat when autopilot takes over."
+    "help": "Enemy Sputnik squadrons attack over the Moon and Earth while you're flying the ship yourself. They retreat when autopilot takes over."
+  },
+  "natives": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Planet natives and mines",
+    "help": "Each world has its own enemies (Martians, Plutonians...) and drifting mines turn up anywhere. Like the Sputniks, they only attack while you're flying."
   },
   "eggs": {
     "type": "checkbox",
@@ -237,7 +243,7 @@
     "help": "When off, the secret key combination that reveals the Cheats tab in the hangar does nothing."
   },
   "resetProgress": {
-    "text": "Reset credits, upgrades and score",
+    "text": "Reset all progress (credits, upgrades, weapons, ships, worlds, score)",
     "type": "button",
     "value": "Reset"
   },

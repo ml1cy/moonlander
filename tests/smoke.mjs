@@ -158,6 +158,26 @@ console.log('web game');
   check(visited.length === 10 && visited[9] === 'moon' && visited[5] === 'titan', 'all ten worlds build and run');
   await page.keyboard.press('ArrowUp');
 
+  // every enemy type spawns, runs, shoots and can be destroyed
+  const foeRun = await page.evaluate(() => {
+    const d = window.__moonLanderDebug, r = { types: d.foeTypes(), spawned: 0, cleared: 0 };
+    d.cheat('god', true);
+    for (const type of r.types) {
+      const s = d.state();
+      d.place(s.W * 0.5, s.H * 0.45, 0, 0, 0, 0, true);
+      d.foes(type, 2);
+      if (d.foeList().length === 2) r.spawned++;
+      for (let i = 0; i < 400; i++) window.__moonLanderStep(1 / 60);
+      for (let i = 0; i < 12; i++) d.hitFoe();
+      if (d.foeList().length === 0) r.cleared++;
+    }
+    r.aliens = d.state().score.aliens;
+    d.cheat('god', false);
+    return r;
+  });
+  check(foeRun.types.length === 9 && foeRun.spawned === 9 && foeRun.cleared === 9 && foeRun.aliens > 0,
+    'all nine enemy types spawn, fight and die ' + JSON.stringify({ spawned: foeRun.spawned, cleared: foeRun.cleared, aliens: foeRun.aliens }));
+
   // every weapon fires; holding fire overheats the gun, and it recovers
   const fired = await page.evaluate(() => {
     const d = window.__moonLanderDebug, r = {};
@@ -187,6 +207,19 @@ console.log('web game');
   await page.evaluate(() => { const d = window.__moonLanderDebug; d.sputniks(3); d.ufo(true); d.nuke(); d.cow(); });
   await page.waitForTimeout(3500);
   await page.screenshot({ path: join(out, 'web-action.png') });
+
+  // the hangar's reset row needs a second press, then wipes everything
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('ArrowLeft'); await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowLeft'); await page.keyboard.press('ArrowLeft');
+  check((await econ()).menuTab === 0, 'back on the upgrades tab');
+  await page.keyboard.press('Digit9');
+  check((await econ()).credits > 0, 'first press on RESET PROGRESS only asks');
+  await page.screenshot({ path: join(out, 'web-reset.png') });
+  await page.keyboard.press('Digit9');
+  e = await econ();
+  check(e.credits === 0 && e.weapons.length === 1 && e.ships.length === 1 && e.worlds.length === 1 && !e.cheatsUnlocked, 'second press resets all progress');
+  await page.keyboard.press('Escape');
   check(errors.length === 0, 'no page errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
   await page.close();
 }
