@@ -1,8 +1,13 @@
 # Changelog
 
+## 1.5.1 — 2026-11-12
+
+- **Zoom shows the whole arena** — the zoom is now tied directly to the ship's height: the view grows so the ground stays at the bottom of the screen, until the entire arena is in view at the top of the sky. The arena is now as many screens tall as it is wide (the "World size" setting), so the fully zoomed-out view shows exactly all of it.
+- Shots and the +$ labels keep a readable size when zoomed out.
+
 ## 1.5.0 — 2026-11-12
 
-- **Altitude zoom** — the camera pulls back as you climb (down to 55 % at the top of the sky) and closes in again as you descend; the idle loop always plays at 1:1. New "Zoom out at altitude" setting. The sky is now 2.5 screens tall instead of 1.5.
+- **Altitude zoom** — the camera pulls back as you climb and closes in again as you descend; the idle loop always plays at 1:1. New "Zoom out at altitude" setting.
 - **More enemies** — waves arrive about twice as often and are bigger. The higher you fly, the faster they come, the more ships per wave, and new waves can arrive before the last one is cleared.
 - **Sky Raiders** — a new fighter squadron that joins in at altitude on every world (and replaces ground walkers up there, since they can't reach you).
 

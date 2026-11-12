@@ -188,14 +188,19 @@ console.log('web game');
     d.cheat('god', true);
     let s = d.state();
     for (let i = 0; i < 90; i++) { d.place(s.W * 0.5, -s.CEIL * 0.8, 0, 0, 0, 0, true); step(1); }
-    r.high = d.state().zoom; r.alt = d.state().alt;
+    for (let i = 0; i < 120; i++) { d.place(s.W * 0.5, -s.CEIL * 0.8, 0, 0, 0, 0, true); step(1); }
+    s = d.state();
+    r.high = s.zoom; r.alt = s.alt; r.full = s.W / s.WW; r.camY = s.cam.y;
+    for (let i = 0; i < 60; i++) { d.place(s.W * 0.5, s.H * 0.2, 0, 0, 0, 0, true); step(1); }
+    r.mid = d.state().zoom;
     for (let i = 0; i < 300; i++) { d.place(s.W * 0.5, s.H * 0.5, 0, 0, 0, 0, true); step(1); }
     r.low = d.state().zoom;
     window.MoonLander.setProperty('natives', true); window.MoonLander.setProperty('sputniks', true);
     d.cheat('god', false);
     return r;
   });
-  check(zoomRun.high < 0.75 && zoomRun.low === 1, `camera zooms out up high (${zoomRun.high.toFixed(2)}) and back to 1 near the ground`);
+  check(Math.abs(zoomRun.high - zoomRun.full) < 0.01 && Math.abs(zoomRun.camY) < 1, `whole arena is in view at the top of the sky (zoom ${zoomRun.high.toFixed(2)})`);
+  check(zoomRun.mid > zoomRun.high && zoomRun.mid < 1 && zoomRun.low === 1, `zoom follows altitude (${zoomRun.mid.toFixed(2)} part-way) and is back to 1 near the ground`);
 
   // Q / E side thrusters push the ship sideways without turning it
   const strafe = await page.evaluate(() => {
@@ -247,6 +252,8 @@ console.log('web game');
     for (const id of ['laser', 'scatter', 'rail', 'missile']) {
       d.weapon(id);
       for (let i = 0; i < 60; i++) window.__moonLanderStep(1 / 60);   // let the gun cool and the cooldown run out
+      const s = d.state();
+      d.place(s.W * 0.5, s.H * 0.4, 0, 0, 0, 0, true);                // upright and clear of the ground
       d.fire();
       window.__moonLanderStep(1 / 60);
       r[id] = d.econ().bullets;

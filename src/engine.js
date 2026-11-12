@@ -259,6 +259,8 @@
   const offView = (x, y, m) => x < W / 2 - W / (2 * zoom) - m || x > W / 2 + W / (2 * zoom) + m || y < H - H / zoom - m || y > H + m;
   // How high the ship is, 0 (near the ground) to 1 (top of the sky)
   const altFrac = () => (ground && CEIL ? clamp((groundY(rocket.x) - rocket.y - H * 0.4) / (CEIL - H * 0.2), 0, 1) : 0);
+  // small things (shots) are drawn this many art pixels wide so they stay visible when zoomed out
+  const dotSize = () => Math.max(1, Math.round(0.6 / zoom));
 
   let ground = null, ridgeH = null;
   let skyCanvas, ridgeCanvas, fgCanvas;
@@ -277,7 +279,7 @@
     H = Math.ceil(physH / PS);
     S = H / 360;
     WW = W * Math.max(1, cfg.worldSize | 0);
-    CEIL = cfg.worldSize > 1 ? Math.round(H * 2.5) : 0;
+    CEIL = cfg.worldSize > 1 ? H * (Math.max(1, cfg.worldSize | 0) - 1) : 0;    // arena = worldSize screens wide and tall
     RW = W * 2;
 
     canvas.width = W;
@@ -1646,7 +1648,7 @@
     }
     rocket.angle = Math.atan2(Math.sin(rocket.angle), Math.cos(rocket.angle));
     rocket.x = wrapX(rocket.x);
-    const top = -CEIL + 12 * RS;
+    const top = -CEIL + 60 * RS;       // leaves the ship clear of the HUD when the whole arena is in view
     if (rocket.y < top) { rocket.y = top; rocket.vy = Math.max(0, rocket.vy); }
     const sp = Math.hypot(rocket.vx, rocket.vy), cap = H * 0.9;
     if (sp > cap) { rocket.vx *= cap / sp; rocket.vy *= cap / sp; }
@@ -1745,7 +1747,7 @@
 
   function updateDrag(dt) {
     const tx = mouse.wx + rocket.grabX;
-    const ty = Math.max(-CEIL + 12 * RS, mouse.wy + rocket.grabY);
+    const ty = Math.max(-CEIL + 60 * RS, mouse.wy + rocket.grabY);
     const k = Math.min(1, dt * 18);
     const nx = rocket.x + wd(tx - rocket.x) * k, ny = lerp(rocket.y, ty, k);
     const iv = Math.min(1, dt * 12);
@@ -1968,16 +1970,16 @@
   function drawBullets() {
     for (const b of bullets) {
       const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp;
-      const x = sxOf(b.x), y = syOf(b.y), len = b.len || 5;
+      const x = sxOf(b.x), y = syOf(b.y), len = b.len || 5, q = dotSize();
       ctx.fillStyle = b.col;
       for (let i = 1; i < len; i++) {
         ctx.globalAlpha = 1 - i / len;
-        ctx.fillRect(Math.round(x - ux * i), Math.round(y - uy * i), 1, 1);
+        ctx.fillRect(Math.round(x - ux * i * q), Math.round(y - uy * i * q), q, q);
       }
       ctx.globalAlpha = 1;
-      if (b.kind === 'missile') ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
+      if (b.kind === 'missile') ctx.fillRect(Math.round(x) - q, Math.round(y) - q, 3 * q, 3 * q);
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
+      ctx.fillRect(Math.round(x), Math.round(y), q, q);
     }
   }
 
@@ -2208,9 +2210,9 @@
 
   function drawPlasma() {
     for (const p of plasma) {
-      const x = Math.round(sxOf(p.x)), y = Math.round(syOf(p.y));
-      ctx.fillStyle = p.col || '#6dff4f'; ctx.globalAlpha = 0.5; ctx.fillRect(x - 2, y - 2, 4, 4);
-      ctx.globalAlpha = 1; ctx.fillStyle = p.core || '#eaffdf'; ctx.fillRect(x - 1, y - 1, 2, 2);
+      const x = Math.round(sxOf(p.x)), y = Math.round(syOf(p.y)), q = dotSize();
+      ctx.fillStyle = p.col || '#6dff4f'; ctx.globalAlpha = 0.5; ctx.fillRect(x - 2 * q, y - 2 * q, 4 * q, 4 * q);
+      ctx.globalAlpha = 1; ctx.fillStyle = p.core || '#eaffdf'; ctx.fillRect(x - q, y - q, 2 * q, 2 * q);
     }
   }
 
@@ -3177,7 +3179,11 @@
   function drawFloaters() {
     for (const f of floaters) {
       ctx.globalAlpha = clamp(1.3 - f.t, 0, 1);
-      drawText(f.text, Math.round(sxOf(f.x) - textWidth(f.text) / 2), Math.round(syOf(f.y)), f.col);
+      ctx.save();                                   // labels stay the same size on screen at any zoom
+      ctx.translate(Math.round(sxOf(f.x)), Math.round(syOf(f.y)));
+      ctx.scale(1 / zoom, 1 / zoom);
+      drawText(f.text, -Math.round(textWidth(f.text) / 2), 0, f.col);
+      ctx.restore();
     }
     ctx.globalAlpha = 1;
   }
@@ -3428,7 +3434,7 @@
       ctx.fillStyle = '#0d1430'; ctx.fillRect(b.x, b.y, b.w, b.h);
       ctx.fillStyle = '#3b4a7a'; ctx.fillRect(b.x, b.y + b.h, b.w, 1);
       drawText(b.label, b.x + 3, b.y + 2, '#ffd75a');
-      if (CEIL > 0 && cam.y < -H * 0.2) {
+      if (CEIL > 0 && altFrac() > 0.02) {
         const alt = 'ALT ' + Math.round(-(rocket.y - H * 0.82) / S);
         drawText(alt, W - textWidth(alt) - 6, 16, '#a9b4d6');
       }
@@ -3541,8 +3547,13 @@
   function updateZoom(dt) {
     const playing = rocket.mode === 'manual' || rocket.mode === 'drag' || rocket.mode === 'return';
     let target = 1;
-    if (cfg.zoomCamera && CEIL && playing) { const t = altFrac(); target = 1 - 0.45 * t * t * (3 - 2 * t); }
-    zoom += (target - zoom) * Math.min(1, dt * 1.8);
+    if (cfg.zoomCamera && CEIL && playing) {
+      // Tied directly to height: the view grows so the ground stays at the bottom of the screen and
+      // the ship about a third of the way down, until the whole arena (W / WW) is in view.
+      const hgt = Math.max(0, groundY(rocket.x) - rocket.y);
+      target = clamp(H * 0.65 / (hgt + H * 0.2), W / WW, 1);
+    }
+    zoom += (target - zoom) * Math.min(1, dt * 3);
     if (Math.abs(zoom - 1) < 0.002 && target === 1) zoom = 1;
   }
 
@@ -3560,12 +3571,14 @@
       return;
     }
     const k = Math.min(1, dt * 5);
-    const rsx = wd(rocket.x - cam.x - W / 2), dz = W * 0.2;
+    // dead zones are in screen space, so they widen in world units as the camera zooms out
+    const rsx = wd(rocket.x - cam.x - W / 2), dz = W * 0.2 / zoom;
     if (rsx > dz) cam.x += (rsx - dz) * k; else if (rsx < -dz) cam.x += (rsx + dz) * k;
-    const rsy = rocket.y - cam.y;
-    let ey = 0;
-    if (rsy < H * 0.3) ey = rsy - H * 0.3; else if (rsy > H * 0.62) ey = rsy - H * 0.62;
-    cam.y = clamp(cam.y + ey * k, -CEIL, 0);
+    // keep the ship below a line 28 % down the screen, and otherwise sink back until the bottom of the
+    // world is at the bottom of the screen; never show anything above the top of the sky
+    const rsy = rocket.y - cam.y, lo = H - H * 0.72 / zoom;
+    const ey = rsy < lo ? rsy - lo : Math.min(rsy - lo, -cam.y);
+    cam.y = clamp(cam.y + ey * k, Math.min(0, H / zoom - H - CEIL), 0);
   }
 
   // ================================================================ input
@@ -3779,8 +3792,8 @@
     if (shake > 0.02) ctx.translate(Math.round(rand(-3, 3) * shake), Math.round(rand(-3, 3) * shake));
 
     ctx.drawImage(skyCanvas, 0, 0);
-    const alt = CEIL ? clamp(-cam.y / CEIL, 0, 1) : 0;
-    if (alt > 0.01) { ctx.globalAlpha = alt * 0.75; ctx.fillStyle = skyTopCol(); ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+    const alt = CEIL ? clamp(-viewT() / CEIL, 0, 1) : 0;
+    if (alt > 0.01) { ctx.globalAlpha = alt * 0.6; ctx.fillStyle = skyTopCol(); ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
 
     // stars (parallax)
     const ox = -mouse.sx * 1.5, oy = -mouse.sy * 1.0;
@@ -3807,8 +3820,9 @@
     const zoomAbout = z => { ctx.translate(W / 2, H); ctx.scale(z, z); ctx.translate(-W / 2, -H); };
     const roff = Math.round(mod(rcx * 0.5, RW)), ry = Math.round(-rcy * 0.5);
     ctx.save();
-    if (zoom !== 1) zoomAbout(1 + (zoom - 1) * 0.5);
-    for (const o of zoom !== 1 ? [-RW, 0, RW] : [0, RW]) if (o - roff < W * 1.5 && o - roff + RW > -W * 0.5) ctx.drawImage(ridgeCanvas, o - roff, ry);
+    const zr = 1 + (zoom - 1) * 0.75;
+    if (zoom !== 1) zoomAbout(zr);
+    for (let o = -RW; o <= 2 * RW; o += RW) if (o - roff < W / 2 + W / (2 * zr) && o - roff + RW > W / 2 - W / (2 * zr)) ctx.drawImage(ridgeCanvas, o - roff, ry);
     ctx.restore();
 
     ctx.save();                         // ---- world layer (zoomed)
@@ -3817,7 +3831,7 @@
 
     // near surface
     const foff = mod(rcx, WW), fy = -rcy;
-    for (const o of zoom !== 1 ? [-WW, 0, WW] : [0, WW]) if (o - foff < W * 1.6 && o - foff + WW > -W * 0.6) ctx.drawImage(fgCanvas, o - foff, fy);
+    for (const o of [-WW, 0, WW]) if (o - foff < W / 2 + W / (2 * zoom) && o - foff + WW > W / 2 - W / (2 * zoom)) ctx.drawImage(fgCanvas, o - foff, fy);
 
     drawGroundGlow();
     drawParticles(false);

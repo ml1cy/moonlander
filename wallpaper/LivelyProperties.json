@@ -235,7 +235,7 @@
     "type": "checkbox",
     "value": true,
     "text": "Zoom out at altitude",
-    "help": "The camera pulls back as you climb, so you can see more of the sky, and closes in again as you come down to land."
+    "help": "The camera pulls back smoothly as you climb, keeping the ground in view, until the whole arena fits on screen. It closes in again as you come down to land."
   },
   "bosses": {
     "type": "checkbox",
