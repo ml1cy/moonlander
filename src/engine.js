@@ -53,6 +53,7 @@
     aliens: true,
     sputniks: true,
     natives: true,
+    bosses: true,
     eggs: true,
     cheats: true,
     bodyColor: '#bdc6cb',
@@ -127,6 +128,7 @@
       case 'aliens': cfg.aliens = !!val; break;
       case 'eggs': cfg.eggs = !!val; break;
       case 'natives': cfg.natives = !!val; if (!val) foes.length = 0; break;
+      case 'bosses': cfg.bosses = !!val; if (!val && boss) boss.state = 'leave'; break;
       case 'cheats': cfg.cheats = !!val; break;
       case 'sputniks': cfg.sputniks = !!val; if (!val) sputniks.length = 0; break;
       case 'bodyColor': cfg.bodyColor = val; needsShip = true; break;
@@ -283,7 +285,7 @@
 
     particles.length = 0; shooting.length = 0; asteroids.length = 0; bullets.length = 0;
     plasma.length = 0; cows.length = 0; escapees.length = 0; sputniks.length = 0; foes.length = 0;
-    ufo = null; missile = null;
+    ufo = null; missile = null; boss = null; bossMeter = 0; bossDelay = 0;
     resetRocket();
     buildLoop(rng);
     cam.x = 0; cam.y = 0;
@@ -1484,7 +1486,7 @@
 
   // ================================================================ manual flight (rigid body)
   const score = { stars: 0, rocks: 0, ufos: 0, sputniks: 0, aliens: 0, landings: 0 };
-  const keys = { up: false, left: false, right: false, down: false, fire: false };
+  const keys = { up: false, left: false, right: false, down: false, fire: false, strafeL: false, strafeR: false };
   let lastKeyTime = -1e9;
   let lastInteract = -1e9;
   let hintT = 0, hintShown = false, hudAlpha = 0;
@@ -1496,6 +1498,18 @@
   // give small, controllable turns. Nothing pulls the ship back to level.
   const ROT_ACC = () => 2.4 * shipDef.turn * cfg.steering / 100;
   const ROT_MAX = 2.6;
+  const STRAFE = () => H * 0.13 * shipDef.thrust * (turboT > 0 ? 1.35 : 1);
+
+  // Little jets from the side of the hull opposite to the push (dir: 1 = pushing right).
+  function spawnStrafePuffs(dir, dt) {
+    if (Math.random() > dt * 60) return;
+    const c = Math.cos(rocket.angle), s = Math.sin(rocket.angle), lx = -dir * 10, ly = rand(-6, 10);
+    const sp = H * rand(0.12, 0.2);
+    spawn({ kind: 'fire', col: isRainbow() ? rgbStr(hslRgb(time * 300, 1, 0.65)) : null,
+      x: rocket.x + (lx * c - ly * s) * RS, y: rocket.y + (lx * s + ly * c) * RS,
+      vx: -dir * c * sp + rocket.vx * 0.3, vy: -dir * s * sp + rocket.vy * 0.3,
+      g: 0, drag: 0.9, life: rand(0.15, 0.35), age: 0, s0: 1, s1: 2 });
+  }
   const impacts = { foot: 0, body: 0 };
 
   function noteInteract() {
@@ -1580,7 +1594,7 @@
   }
 
   function updateManual(dt) {
-    const steering = keys.left || keys.right || keys.up;
+    const steering = keys.left || keys.right || keys.up || keys.strafeL || keys.strafeR;
     if (rocket.grounded) {
       if (!steering) {
         rocket.vx = rocket.vy = rocket.w = 0;
@@ -1601,12 +1615,14 @@
     rocket.w = clamp(rocket.w, -ROT_MAX, ROT_MAX);
 
     const th = keys.up ? THRUST() : 0, g = GRAV();
+    // Q / E strafe thrusters push the ship sideways along its own left-right axis, without turning it
+    const strafe = ((keys.strafeR ? 1 : 0) - (keys.strafeL ? 1 : 0)) * STRAFE();
     impacts.foot = impacts.body = 0;
     let touching = 0, feet = 0;
     const SUB = 4, h = dt / SUB;
     for (let i = 0; i < SUB; i++) {
-      rocket.vx += Math.sin(rocket.angle) * th * h;
-      rocket.vy += (-Math.cos(rocket.angle) * th + g) * h;
+      rocket.vx += (Math.sin(rocket.angle) * th + Math.cos(rocket.angle) * strafe) * h;
+      rocket.vy += (-Math.cos(rocket.angle) * th + Math.sin(rocket.angle) * strafe + g) * h;
       rocket.x += rocket.vx * h; rocket.y += rocket.vy * h;
       rocket.angle += rocket.w * h;
       const c = contactPass();
@@ -1652,6 +1668,7 @@
     rocket.thrust += ((keys.up ? 1 : 0) - rocket.thrust) * Math.min(1, dt * 10);
     if (keys.up && restY(rocket.x) - rocket.y < H * 0.1 && Math.random() < dt * 35) kickDust(rocket.x, 2, 0.6);
     spawnExhaust(dt);
+    if (strafe) spawnStrafePuffs(strafe > 0 ? 1 : -1, dt);
     idleCheck();
   }
 
@@ -1669,7 +1686,7 @@
   // Autopilot (when switched on) takes over once the ship has been left alone for a while.
   function idleCheck() {
     if (!cfg.autopilot) return;
-    if (keys.up || keys.left || keys.right || keys.down) return;
+    if (keys.up || keys.left || keys.right || keys.down || keys.strafeL || keys.strafeR) return;
     const since = time - Math.max(lastKeyTime, rocket.releaseT, lastInteract);
     if (since > cfg.idleReturn) startReturn();
   }
@@ -1983,7 +2000,7 @@
 
   function updateUfo(dt) {
     const playing = cfg.flightMode === 1 || rocket.mode !== 'auto' || time - lastInteract < 60;
-    if (cfg.aliens && !ufo && playing) {
+    if (cfg.aliens && !ufo && playing && !boss) {
       ufoTimer -= dt;
       if (ufoTimer <= 0) { ufoTimer = rand(40, 90); spawnUfo(); }
     }
@@ -2232,6 +2249,7 @@
     flash = Math.max(flash, 0.2);
     score.sputniks++;
     earn(15, s.x, s.y);
+    bossProgress(1);
     if (wave) {
       wave.killed++;
       if (wave.killed >= wave.size && wave.size > 1) {
@@ -2244,7 +2262,7 @@
 
   function updateSputniks(dt) {
     const flying = rocket.mode === 'manual' || rocket.mode === 'drag';
-    if (cfg.sputniks && flying && !sputniks.length && !NATIVES[worldDef.id]) {
+    if (cfg.sputniks && flying && !sputniks.length && !NATIVES[worldDef.id] && !boss) {
       sputTimer -= dt;
       if (sputTimer <= 0) { sputTimer = rand(30, 60); spawnSputniks(1 + Math.floor(Math.random() * 3)); }
     }
@@ -2391,6 +2409,7 @@
   let foeTimer = rand(12, 20);
   let foeWave = null;       // { size, killed }
   const foeUnit = () => 2 * Math.max(1, Math.round(S));     // sprites are drawn at twice the art-pixel scale
+  const foeScale = def => foeUnit() * (def.scale || 1);     // bosses are bigger still
 
   function foeSprite(def) {
     if (def.spr) return def.spr;
@@ -2412,7 +2431,7 @@
     if (!def || !ground || !visibleRocket()) return;
     n = Math.min(n || Math.round(rand(def.count[0], def.count[1])), 8 - foes.length);
     if (n <= 0) return;
-    const side = Math.random() < 0.5 ? -1 : 1, u = foeUnit();
+    const side = Math.random() < 0.5 ? -1 : 1, u = foeScale(def);
     for (let i = 0; i < n; i++) {
       const f = { type, def, hp: def.hp, hitT: 0, t: 0, st: 0, life: 50, state: 'hunt', sub: '', x: 0, y: 0, vx: 0, vy: 0, a: 1,
         fireT: def.fire ? rand(def.fire[0], def.fire[1]) : 0, cryT: rand(1, 5), oa: rand(0, TAU), phase: rand(0, TAU), wait: rand(1, 2.2) };
@@ -2439,7 +2458,7 @@
   }
 
   function foeHit(f, x, y, pad) {
-    return f.a > 0.4 && Math.hypot(wd(x - f.x), y - f.y) < f.def.r * foeUnit() + pad;
+    return f.a > 0.4 && Math.hypot(wd(x - f.x), y - f.y) < f.def.r * foeScale(f.def) + pad;
   }
 
   // Something hit the ship: shield first, then a crash, otherwise a shove.
@@ -2464,9 +2483,11 @@
     }
     debrisBurst(f.x, f.y, 12, H * 0.25, f.vx * 0.5, f.vy * 0.5, Object.values(def.pal));
     flash = Math.max(flash, 0.15);
+    if (def.boss) { bossDefeated(f); return; }
     if (byPlayer) {
       score.aliens++;
       earn(def.reward, f.x, f.y);
+      bossProgress(1);
       if (foeWave && ++foeWave.killed >= foeWave.size && foeWave.size > 1) {
         toast(def.name + ' DEFEATED', 2, '#9dff7a');
         earn(20, rocket.x, rocket.y - 40 * RS);
@@ -2481,7 +2502,7 @@
   }
 
   function foeFire(f) {
-    const def = f.def, u = foeUnit(), oy = f.y - (def.ai === 'walker' ? foeSprite(def).h * u / 2 : 0);
+    const def = f.def, u = foeScale(def), oy = f.y - (def.ai === 'walker' ? foeSprite(def).h * u / 2 : 0);
     const dx = wd(rocket.x - f.x), dy = rocket.y - oy, d = Math.hypot(dx, dy) || 1;
     if (d > W * 0.7) return;
     const sp = H * (def.shotSp || 0.3);
@@ -2501,13 +2522,13 @@
   }
   function foeMove(f, dt) {
     f.x = wrapX(f.x + f.vx * dt); f.y += f.vy * dt;
-    const floor = groundY(f.x) - (f.def.r + 2) * foeUnit();
+    const floor = groundY(f.x) - (f.def.r + 2) * foeScale(f.def);
     if (f.y > floor) { f.y = floor; f.vy = -Math.abs(f.vy) * 0.5; }
   }
 
   function updateFoes(dt) {
     const flying = rocket.mode === 'manual' || rocket.mode === 'drag';
-    if (cfg.natives && flying && !foes.length) {
+    if (cfg.natives && flying && !foes.length && !boss) {
       foeTimer -= dt;
       if (foeTimer <= 0) {
         foeTimer = rand(22, 40);
@@ -2516,19 +2537,18 @@
       }
     }
     const giveUp = !flying || !visibleRocket() || rocket.mode === 'abducted';
-    const u = foeUnit();
 
     for (let i = foes.length - 1; i >= 0; i--) {
       const f = foes[i];
       if (!f) continue;               // a mine blast earlier in this loop can shorten the list
-      const def = f.def;
+      const def = f.def, u = foeScale(def);
       f.t += dt; f.st += dt; f.life -= dt; f.hitT -= dt;
       if ((giveUp || f.life <= 0) && f.state !== 'leave') { f.state = 'leave'; f.st = 0; }
       const dx = wd(rocket.x - f.x), dy = rocket.y - f.y, d = Math.hypot(dx, dy) || 1;
 
       if (f.state === 'leave') {
-        if (def.ai === 'walker') { f.y += H * 0.07 * dt; if (f.st > 1.6) foes.splice(i, 1); }       // burrows away
-        else if (def.ai === 'mine' || def.ai === 'blinker') { f.a -= dt * 1.5; if (f.a <= 0) foes.splice(i, 1); }
+        if (def.ai === 'walker' || def.move === 'ground') { f.y += H * 0.07 * dt * (def.scale || 1); if (f.st > 1.6) foes.splice(i, 1); }       // burrows away
+        else if (def.ai === 'mine' || def.ai === 'blinker' || def.move === 'blink') { f.a -= dt * 1.5; if (f.a <= 0) foes.splice(i, 1); }
         else {
           f.vx += (f.vx >= 0 ? 1 : -1) * H * 0.4 * dt; f.vy -= H * 0.5 * dt;
           f.x = wrapX(f.x + f.vx * dt); f.y += f.vy * dt;
@@ -2576,6 +2596,7 @@
           else if (f.sub === 'aim') { f.a = 1; if (f.st > 0.8) { foeFire(f); f.sub = 'out'; f.st = 0; } }
           else { f.a = Math.max(0, 1 - f.st / 0.4); if (f.st > 0.4) { f.sub = 'hidden'; f.st = 0; f.wait = rand(0.8, 1.8); } }
           break;
+        case 'boss': updateBoss(f, dt, dx, dy, d); break;
         case 'mine':
           f.a = Math.min(1, f.a + dt * 2);
           f.x = wrapX(f.x + dx / d * H * 0.05 * dt); f.y += (dy / d * H * 0.05 + Math.sin(f.t * 2 + f.phase) * 3 * S) * dt;
@@ -2594,18 +2615,184 @@
       }
     }
     if (!foes.length) foeWave = null;
+    if (boss && !foes.includes(boss)) { boss = null; bossMeter = BOSS_AT - 3; }     // it got away: a few more kills bring it back
+    if (bossDelay > 0 && flying) {
+      bossDelay -= dt;
+      if (bossDelay <= 0) spawnBoss();
+    }
   }
 
   function drawFoes() {
-    const u = foeUnit();
     for (const f of foes) {
-      const spr = foeSprite(f.def), cx = Math.round(sxOf(f.x)), cy = Math.round(syOf(f.y));
-      if (f.a <= 0 || cx < -40 || cx > W + 40 || cy < -40 || cy > H + 40) continue;
+      const u = foeScale(f.def), spr = foeSprite(f.def), cx = Math.round(sxOf(f.x)), cy = Math.round(syOf(f.y));
+      if (f.a <= 0 || cx < -80 || cx > W + 80 || cy < -80 || cy > H + 80) continue;
       const lit = f.hitT > 0 || (f.sub === 'fuse' && Math.floor(time * 16) % 2) || (f.sub === 'aim' && f.st > 0.6);
       ctx.globalAlpha = clamp(f.a, 0, 1);
       ctx.drawImage(lit ? spr.wh : spr.cv, cx - Math.round(spr.w * u / 2), cy - Math.round(spr.h * u / 2), spr.w * u, spr.h * u);
     }
     ctx.globalAlpha = 1;
+  }
+
+  // ================================================================ bosses (one per world)
+  // A boss is a big foe (ai: 'boss') that lives in foes[], so bullets, missiles, blasts, clicks and
+  // ramming hit it like any other enemy. Kills on a world fill the boss meter; at BOSS_AT the
+  // world's boss arrives. It cycles through its `attacks`, gets faster below half health, and
+  // leaves if autopilot takes over (rule: nothing fights the idle loop).
+  //   move: hover (default) | above (sits over the ship) | ground (walks the terrain) | blink (teleports)
+  //   attacks: burst | ring | rain | lob | charge | summon | mines
+  const crowned = rows => {
+    const w = rows[0].length, fill = t => ('.'.repeat((w - 5) >> 1) + t).padEnd(w, '.');
+    return [fill('y.y.y'), fill('yyyyy'), ...rows];
+  };
+  const kingOf = (type, o) => {
+    const base = FOE_TYPES[type];
+    return { ai: 'boss', boss: true, scale: 3, minion: type, col: base.col, pal: { ...base.pal, y: '#ffd75a' }, rows: crowned(base.rows), ...o };
+  };
+  const BOSSES = {
+    moon: { ai: 'boss', boss: true, scale: 3, name: 'SPUTNIK PRIME', hp: 30, reward: 150, col: '#ff4040', minion: 'sputnik',
+      attacks: ['ring', 'burst', 'summon', 'charge'],
+      pal: { a: '#c9ced8', b: '#8e95a3', c: '#f2f4f8', e: '#ff3b3b', k: '#3a0000' },
+      rows: ['....ccc....', '..ccaaaaa..', '.caaaaaaab.', '.caaaaaaab.', 'caaeeeaaabb', 'caaekeaaabb', 'caaeeeaaabb', '.aaaaaaabb.',
+        '.aaaaaabbb.', '..abbbbbb..', '....bbb....'] },
+    earth: { ai: 'boss', boss: true, scale: 3, name: 'DEFENCE STATION', hp: 45, reward: 300, col: '#7ff0ff', minion: 'sputnik',
+      attacks: ['burst', 'mines', 'burst', 'ring', 'summon'],
+      pal: { a: '#c9ced8', b: '#6e7686', c: '#f2f4f8', d: '#3e67fc', e: '#ff3b3b', k: '#1d1b1f' },
+      rows: ['......aaa......', 'ddd..aacaa..ddd', 'dcd.aaaaaaa.dcd', 'dddbaaekeaabddd', 'dcd.aaaaaaa.dcd', 'ddd..aabaa..ddd',
+        '......aaa......', '.......b.......', '......bbb......'] },
+    mercury: kingOf('sunsprite', { name: 'HELIOS', hp: 35, reward: 200, attacks: ['ring', 'charge', 'ring', 'summon'] }),
+    venus: kingOf('venusian', { name: 'THE CLOUD QUEEN', hp: 40, reward: 250, move: 'above', attacks: ['rain', 'burst', 'rain', 'summon'] }),
+    mars: kingOf('martian', { name: 'THE TRIPOD KING', hp: 40, reward: 250, move: 'ground', attacks: ['burst', 'lob', 'burst', 'summon'] }),
+    io: kingOf('ionian', { name: 'THE MAGMA KING', hp: 40, reward: 250, move: 'ground', attacks: ['lob', 'ring', 'lob', 'summon'] }),
+    titan: kingOf('titan', { name: 'THE KRAKEN', hp: 55, reward: 300, attacks: ['burst', 'ring', 'charge', 'summon'] }),
+    miranda: kingOf('mirandan', { name: 'THE ICE QUEEN', hp: 35, reward: 300, attacks: ['charge', 'ring', 'charge', 'summon'] }),
+    triton: kingOf('tritonian', { name: 'THE TRIDENT', hp: 45, reward: 350, attacks: ['burst', 'burst', 'ring', 'summon'] }),
+    pluto: kingOf('plutonian', { name: 'THE NINTH PLANET', hp: 50, reward: 400, move: 'blink', attacks: ['ring', 'burst', 'summon'] })
+  };
+  for (const id in BOSSES) { const b = BOSSES[id]; b.r = Math.min(b.rows[0].length, b.rows.length) / 2 - 0.5; }
+  const BOSS_AT = 8;                 // kills on a world before its boss shows up
+  let boss = null, bossMeter = 0, bossDelay = 0;
+
+  function bossProgress(n) {
+    if (!cfg.bosses || boss || bossDelay > 0) return;
+    bossMeter += n;
+    if (bossMeter < BOSS_AT) return;
+    bossMeter = BOSS_AT;
+    bossDelay = 2.5;
+    toast('WARNING: ' + BOSSES[worldDef.id].name + ' APPROACHES', 2.5, '#ff6b5b');
+  }
+
+  function spawnBoss() {
+    const def = BOSSES[worldDef.id];
+    bossDelay = 0;
+    if (!def || boss || !ground || !visibleRocket()) return;
+    const side = Math.random() < 0.5 ? -1 : 1, u = foeScale(def);
+    const f = { type: 'boss', def, hp: def.hp, hitT: 0, t: 0, st: 0, life: 1e9, state: 'hunt', sub: '', vx: 0, vy: 0, a: 1,
+      fireT: 2.5, cryT: 1e9, oa: rand(0, TAU), phase: rand(0, TAU), wait: 0.5, atk: 0, raged: false,
+      x: wrapX(cam.x + (side < 0 ? -50 * S : W + 50 * S)), y: cam.y + H * 0.15, keep: 130 * S };
+    if (def.move === 'ground') f.y = groundY(f.x) - foeSprite(def).h * u / 2 + 1;
+    else if (def.move === 'blink') { f.a = 0; f.sub = 'hidden'; }
+    else f.vx = -side * H * 0.2;
+    foes.push(f);
+    boss = f;
+    shake = Math.max(shake, 0.4);
+    toast(def.name, 2.5, '#ffd75a');
+  }
+
+  function bossAttack(f, atk, dx, dy, d) {
+    const def = f.def, aim = Math.atan2(dy, dx), sp = H * 0.32;
+    const shot = (vx, vy, g = 0, x = f.x) => plasma.push({ x, y: f.y, vx, vy, g, life: 4, col: def.col, core: '#ffffff' });
+    switch (atk) {
+      case 'burst': for (const o of [-0.36, -0.18, 0, 0.18, 0.36]) shot(Math.cos(aim + o) * sp, Math.sin(aim + o) * sp); break;
+      case 'ring': {
+        const n = 12, o = rand(0, TAU);
+        for (let i = 0; i < n; i++) shot(Math.cos(o + i * TAU / n) * sp * 0.75, Math.sin(o + i * TAU / n) * sp * 0.75);
+        break;
+      }
+      case 'rain': for (let i = -3; i <= 3; i++) shot(0, H * 0.05, H * 0.28, wrapX(rocket.x + (i * 34 + rand(-8, 8)) * S)); break;
+      case 'lob': for (const T of [1.2, 1.6, 2]) { const g = H * 0.3; shot((dx + rand(-20, 20) * S) / T, (dy - 0.5 * g * T * T) / T, g); } break;
+      case 'charge':
+        if (def.move === 'ground' || def.move === 'blink') break;
+        f.sub = 'charge'; f.st = 0; f.vx = dx / d * H * 0.6; f.vy = dy / d * H * 0.6;
+        break;
+      case 'summon':
+        if (def.minion === 'sputnik') { if (sputniks.length < 3) spawnSputniks(2); }
+        else if (foes.length < 5) spawnFoes(def.minion, 2);
+        break;
+      case 'mines': if (foes.length < 6) spawnFoes('mine', 3); break;
+    }
+  }
+
+  function updateBoss(f, dt, dx, dy, d) {
+    const def = f.def, rage = f.hp <= def.hp / 2;
+    if (rage && !f.raged) { f.raged = true; shake = Math.max(shake, 0.5); toast(def.name + ' IS FURIOUS', 2, '#ff6b5b'); }
+    if (f.sub === 'charge') {
+      foeMove(f, dt);
+      if (Math.random() < dt * 50) spawn({ kind: 'fire', x: f.x, y: f.y, col: def.col, vx: rand(-1, 1) * H * 0.03, vy: rand(-1, 1) * H * 0.03,
+        g: 0, drag: 0.9, life: rand(0.3, 0.6), age: 0, s0: 3, s1: 1 });
+      if (f.st > 1) { f.sub = ''; f.st = 0; }
+      return;
+    }
+    if (def.move === 'ground') {
+      const want = Math.abs(dx) > f.keep ? Math.sign(dx) : Math.abs(dx) < f.keep * 0.6 ? -Math.sign(dx) : 0;
+      f.x = wrapX(f.x + want * H * (rage ? 0.12 : 0.08) * dt);
+      f.y = groundY(f.x) - foeSprite(def).h * foeScale(def) / 2 + 1;
+    } else if (def.move === 'blink') {
+      if (f.sub === 'hidden') {
+        f.a = 0;
+        if (f.st > f.wait) {
+          const ang = rand(-Math.PI, 0), dist = rand(100, 140) * S * RS;
+          f.x = wrapX(rocket.x + Math.cos(ang) * dist);
+          f.y = Math.min(rocket.y + Math.sin(ang) * dist, groundY(f.x) - (def.r + 2) * foeScale(def));
+          f.sub = 'in'; f.st = 0;
+        }
+      } else if (f.sub === 'in') { f.a = Math.min(1, f.st / 0.4); if (f.st > 0.4) { f.sub = 'show'; f.st = 0; } }
+      else if (f.sub === 'show') { f.a = 1; if (f.st > (rage ? 2.6 : 3.6)) { f.sub = 'out'; f.st = 0; } }
+      else { f.a = Math.max(0, 1 - f.st / 0.4); if (f.st > 0.4) { f.sub = 'hidden'; f.st = 0; f.wait = rand(0.5, 1); } }
+    } else {
+      const R = 115 * S * RS;
+      f.oa += 0.25 * dt;
+      const tx = rocket.x + (def.move === 'above' ? Math.sin(f.t * 0.5 + f.phase) * 60 * S : Math.cos(f.oa) * R);
+      const ty = rocket.y - (def.move === 'above' ? R : (30 + 55 * Math.abs(Math.sin(f.oa))) * S * RS);
+      foeSteer(f, tx, ty, H * (rage ? 0.3 : 0.22), dt);
+    }
+    if (f.a < 0.9 || d > W * 0.8) return;
+    f.fireT -= dt * (rage ? 1.6 : 1);
+    if (f.fireT > 0) return;
+    f.fireT = 2.3;
+    bossAttack(f, def.attacks[f.atk++ % def.attacks.length], dx, dy, d);
+  }
+
+  function bossDefeated(f) {
+    const def = f.def;
+    boss = null; bossMeter = 0;
+    for (let k = 0; k < 90; k++) {
+      const ang = Math.random() * TAU, sp = rand(0.05, 0.55) * H, r = def.r * foeScale(def);
+      spawn({ kind: k % 3 ? 'fire' : 'spark', front: true, x: f.x + rand(-r, r), y: f.y + rand(-r, r), vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
+        g: -H * 0.02, col: k % 2 ? def.col : null, drag: 0.94, life: rand(0.5, 1.6), age: 0, s0: 3, s1: rand(4, 8), hit: true, noGround: true });
+    }
+    debrisBurst(f.x, f.y, 40, H * 0.4, 0, -H * 0.1, Object.values(def.pal));
+    flash = 1; shake = Math.max(shake, 0.9);
+    plasma.length = 0;
+    score.aliens++;
+    earn(def.reward, f.x, f.y);
+    const first = !owned.bosses.has(worldDef.id);
+    owned.bosses.add(worldDef.id);
+    toast(def.name + ' DEFEATED', 3.5, '#9dff7a');
+    if (first && owned.bosses.size === WORLDS.length) {
+      toast('THE SOLAR SYSTEM IS YOURS', 5, '#ffd75a');
+      earn(1000, rocket.x, rocket.y - 40 * RS);
+    }
+    saveGame();
+  }
+
+  function drawBossBar() {
+    if (!boss) return;
+    const def = boss.def, bw = Math.min(180, W - 40), bx = Math.round((W - bw) / 2), by = H - 12;
+    drawText(def.name, Math.round((W - textWidth(def.name)) / 2), by - 8, boss.raged ? '#ff6b5b' : '#ffd75a');
+    ctx.fillStyle = '#05060f'; ctx.fillRect(bx - 1, by - 1, bw + 2, 6);
+    ctx.fillStyle = '#3a1420'; ctx.fillRect(bx, by, bw, 4);
+    ctx.fillStyle = boss.hitT > 0 ? '#ffffff' : boss.raged ? '#ff6b5b' : '#ff9a2a';
+    ctx.fillRect(bx, by, Math.round(bw * clamp(boss.hp / def.hp, 0, 1)), 4);
   }
 
   // ================================================================ easter eggs
@@ -2788,7 +2975,7 @@
     { id: 'gunship', name: 'GUNSHIP', desc: 'TWIN CANNONS THAT COOL MUCH FASTER', cost: 350, thrust: 1, turn: 0.9, hull: 1, cool: 1.6, shield: 0 }
   ];
   let shipDef = SHIPS[0];
-  const owned = { weapons: new Set(['laser']), ships: new Set(['classic']), worlds: new Set(['moon']) };
+  const owned = { weapons: new Set(['laser']), ships: new Set(['classic']), worlds: new Set(['moon']), bosses: new Set() };
 
   function setWorld(id) {
     const wl = WORLDS.find(v => v.id === id);
@@ -2844,6 +3031,7 @@
   const cheating = () => cheat.god || cheat.noHeat || cheat.lowGrav;
   function clearEnemies() {
     asteroids.length = 0; sputniks.length = 0; foes.length = 0; plasma.length = 0; wave = null; foeWave = null;
+    boss = null; bossDelay = 0;
     if (ufo && rocket.mode !== 'abducted' && rocket.mode !== 'taken') ufo = null;
   }
   const CHEATS = [
@@ -2860,7 +3048,8 @@
     { name: 'MAX ALL UPGRADES', desc: 'EVERY UPGRADE TO ITS TOP LEVEL',
       run: () => { for (const u of UPGRADES) up[u.id] = u.max; shield.charges = maxShield(); rainbowOn = true; } },
     { name: 'TURBO BOOST', desc: '30 SECONDS OF TURBO', run: () => konami() },
-    { name: 'CLEAR ENEMIES', desc: 'REMOVES ROCKS, SPUTNIKS AND UFOS', run: clearEnemies }
+    { name: 'CLEAR ENEMIES', desc: 'REMOVES ROCKS, ENEMIES, BOSSES AND UFOS', run: clearEnemies },
+    { name: 'SUMMON BOSS', desc: "CALLS THIS WORLD'S BOSS RIGHT NOW", run: () => { menuOpen = false; rocket.mode === 'manual' ? spawnBoss() : toast('FLY THE SHIP FIRST', 2); } }
   ];
   function runCheat(c) {
     if (c.flag) {
@@ -2889,6 +3078,7 @@
       for (const id of s.worlds || []) if (WORLDS.some(wl => wl.id === id)) owned.worlds.add(id);
       if (owned.worlds.has(s.world)) { worldDef = WORLDS.find(wl => wl.id === s.world); needsRebuild = true; }
       cheatsUnlocked = !!s.cheatsUnlocked;
+      for (const id of s.bosses || []) if (BOSSES[id]) owned.bosses.add(id);
     } catch (e) { /* storage unavailable: start fresh */ }
     shield.charges = maxShield();
   }
@@ -2896,14 +3086,15 @@
     try { localStorage.setItem(SAVE_KEY, JSON.stringify({
         credits, up, score, rainbowOn,
         weapons: [...owned.weapons], ships: [...owned.ships], weapon: weaponDef.id, ship: shipDef.id,
-        worlds: [...owned.worlds], world: worldDef.id, cheatsUnlocked
+        worlds: [...owned.worlds], world: worldDef.id, cheatsUnlocked, bosses: [...owned.bosses]
       })); } catch (e) { /* ignore */ }
   }
   function resetProgress() {
     credits = 0;
     for (const k in up) up[k] = 0;
     for (const k in score) score[k] = 0;
-    owned.weapons = new Set(['laser']); owned.ships = new Set(['classic']); owned.worlds = new Set(['moon']);
+    owned.weapons = new Set(['laser']); owned.ships = new Set(['classic']); owned.worlds = new Set(['moon']); owned.bosses = new Set();
+    bossMeter = 0; bossDelay = 0; if (boss) boss.state = 'leave';
     weaponDef = WEAPONS[0]; shipDef = SHIPS[0]; needsShip = true;
     if (worldDef !== WORLDS[0]) { worldDef = WORLDS[0]; needsRebuild = true; }
     cheatsUnlocked = false;
@@ -3031,7 +3222,8 @@
         } });
     } else if (tab === 'WEAPONS') rows = WEAPONS.map(w => shopRow(w, owned.weapons, weaponDef, setWeapon));
     else if (tab === 'SHIPS') rows = SHIPS.map(sh => shopRow(sh, owned.ships, shipDef, setShip));
-    else if (tab === 'WORLDS') rows = WORLDS.map(wl => shopRow(wl, owned.worlds, worldDef, setWorld, 'HERE'));
+    else if (tab === 'WORLDS') rows = WORLDS.map(wl => ({ ...shopRow(wl, owned.worlds, worldDef, setWorld, 'HERE'),
+      pips: [owned.bosses.has(wl.id) ? 1 : 0, 1], desc: wl.desc + (owned.bosses.has(wl.id) ? ' - BOSS BEATEN' : '') }));
     else rows = CHEATS.map(c => ({ name: c.name, desc: c.desc, ...(c.flag ? toggle(cheat[c.flag]) : { right: '', col: '' }), act: () => runCheat(c) }));
     rows.push({ name: 'CLOSE  (TAB / ESC)', close: true, desc: '', right: '', col: '', act: () => { menuOpen = false; } });
     return rows;
@@ -3117,7 +3309,7 @@
     const foot = menuMsgT > 0 ? menuMsg
       : hover && hover.desc ? hover.desc
       : menuTab === 0 ? 'EARN CREDITS: STARS, ROCKS, UFOS, LANDINGS'
-      : 'LEFT / RIGHT SWITCH TABS. Q SWAPS WEAPON IN FLIGHT';
+      : 'LEFT / RIGHT SWITCH TABS. R SWAPS WEAPON IN FLIGHT';
     drawText(foot, L.x + 8, L.y + L.h - 11, menuMsgT > 0 ? '#ffe8a8' : '#a9b4d6');
   }
 
@@ -3206,7 +3398,9 @@
         if (overheated) drawText('OVERHEAT', bx + bw + 5, y, '#ff6b5b');
         y += 8;
       }
+      if (playing && cfg.bosses && !boss) { drawText(bossDelay > 0 ? 'BOSS INCOMING' : 'BOSS ' + bossMeter + '/' + BOSS_AT, 6, y, bossDelay > 0 ? '#ff6b5b' : '#8a93b0'); y += 8; }
       if (cheating()) drawText('CHEATS ON', 6, y, '#ff9cf0');
+      drawBossBar();
       const b = menuButtonRect();
       ctx.fillStyle = '#0d1430'; ctx.fillRect(b.x, b.y, b.w, b.h);
       ctx.fillStyle = '#3b4a7a'; ctx.fillRect(b.x, b.y + b.h, b.w, 1);
@@ -3218,7 +3412,7 @@
       if (hintT > 0) {
         ctx.globalAlpha = hudAlpha * clamp(hintT, 0, 1);
         const lines = cfg.keyboardControl
-          ? ['UP: THRUST   LEFT/RIGHT: ROTATE   DOWN: STOP SPIN', 'SPACE: FIRE   Q: WEAPON   H: AUTOPILOT   TAB: HANGAR']
+          ? ['UP: THRUST   LEFT/RIGHT: ROTATE   DOWN: STOP SPIN', 'Q / E: SIDE THRUSTERS   SPACE: FIRE   R: WEAPON', 'H: AUTOPILOT   TAB: HANGAR']
           : ['DRAG THE ROCKET - CLICK ROCKS AND STARS'];
         lines.forEach((l, i) => drawText(l, Math.round((W - textWidth(l)) / 2), 28 + i * 8, '#ffe8a8'));
       }
@@ -3275,10 +3469,11 @@
       // natives: ramming hurts both sides (mines have their own fuse)
       for (let i = foes.length - 1; i >= 0; i--) {
         const f = foes[i];
-        if (!f || f.a < 0.4 || f.def.ai === 'mine' || !hitRocketBody({ x: f.x, y: f.y, r: f.def.r * foeUnit() })) continue;
+        if (!f || f.a < 0.4 || f.def.ai === 'mine' || !hitRocketBody({ x: f.x, y: f.y, r: f.def.r * foeScale(f.def) })) continue;
         const dx = wd(rocket.x - f.x), dy = rocket.y - f.y, d = Math.hypot(dx, dy) || 1;
         const rel = Math.hypot(rocket.vx - f.vx, rocket.vy - f.vy);
-        damageFoe(i, -dx / d * H * 0.3, -dy / d * H * 0.3);
+        // a boss only takes ramming damage every so often, or sitting on it would shred it
+        if (!f.def.boss || time - (f.ramT || -1e9) > 0.6) { f.ramT = time; damageFoe(i, -dx / d * H * 0.3, -dy / d * H * 0.3); }
         if (foes[i] === f && f.def.ai === 'diver') { f.sub = ''; f.st = 0; f.wait = rand(1.5, 2.5); }
         if (rocket.mode !== 'manual' || shieldAbsorb()) continue;
         if (cfg.crashes && rel > H * 0.5) { explodeRocket(); return; }
@@ -3433,7 +3628,8 @@
 
   const KEYMAP = {
     ArrowUp: 'up', KeyW: 'up', ArrowLeft: 'left', KeyA: 'left',
-    ArrowRight: 'right', KeyD: 'right', ArrowDown: 'down', KeyS: 'down', Space: 'fire'
+    ArrowRight: 'right', KeyD: 'right', ArrowDown: 'down', KeyS: 'down', Space: 'fire',
+    KeyQ: 'strafeL', KeyE: 'strafeR'
   };
 
   window.addEventListener('keydown', e => {
@@ -3459,7 +3655,7 @@
       if (!e.repeat) toggleAutopilot();
       return;
     }
-    if (e.code === 'KeyQ') {
+    if (e.code === 'KeyR') {
       if (!e.repeat) cycleWeapon();
       return;
     }
@@ -3497,7 +3693,7 @@
     if (needsShip) buildShip();
 
     const looping = cfg.flightMode === 0;
-    if (keys.up || keys.left || keys.right || keys.down) {
+    if (keys.up || keys.left || keys.right || keys.down || keys.strafeL || keys.strafeR) {
       lastKeyTime = time;
       if (rocket.mode !== 'manual') takeControl();
     }
@@ -3680,7 +3876,7 @@
     cancelAnimationFrame(raf); raf = 0;
     if (needsRebuild) build();
     particles.length = 0; shooting.length = 0; asteroids.length = 0; bullets.length = 0;
-    ufo = null; missile = null; cows.length = 0; plasma.length = 0; toasts.length = 0; sputniks.length = 0; foes.length = 0;
+    ufo = null; missile = null; cows.length = 0; plasma.length = 0; toasts.length = 0; sputniks.length = 0; foes.length = 0; boss = null; bossMeter = 0; bossDelay = 0;
     rocket.mode = 'auto'; hudAlpha = 0; turboT = 0; menuOpen = false; floaters.length = 0;
     earth.state = 'ok';
     cam.x = 0; cam.y = 0;
@@ -3691,7 +3887,7 @@
   window.__moonLanderStep = function (dt) { if (needsRebuild) build(); update(dt); render(); };
   window.__moonLanderDebug = {
     state: () => ({
-      mode: rocket.mode, state: rocket.state, x: rocket.x, y: rocket.y, angle: rocket.angle, w: rocket.w,
+      mode: rocket.mode, state: rocket.state, x: rocket.x, y: rocket.y, vx: rocket.vx, vy: rocket.vy, angle: rocket.angle, w: rocket.w,
       grounded: rocket.grounded, cam: { ...cam }, PS, DPR, W, H, WW, CEIL, score: { ...score },
       asteroids: asteroids.map(a => ({ x: a.x, y: a.y, r: a.r })), ufo: ufo ? { x: ufo.x, y: ufo.y, state: ufo.state, hp: ufo.hp } : null,
       earth: earth.state, earthX: earth.x, earthY: earthScreenY(), earthR: earth.R, shooting: shooting.length,
@@ -3699,7 +3895,10 @@
     }),
     asteroid: (x, y, size) => spawnAsteroid({ x, y, vx: 0, vy: 0, size, spin: 0.5 }),
     foes: (type, n) => spawnFoes(type, n), foeList: () => foes.map(f => ({ type: f.type, x: f.x, y: f.y, hp: f.hp, state: f.state, sub: f.sub })),
-    foeTypes: () => Object.keys(FOE_TYPES), hitFoe: () => { if (foes.length) damageFoe(foes.length - 1); },
+    foeTypes: () => Object.keys(FOE_TYPES), boss: () => spawnBoss(), bossKills: n => bossProgress(n),
+    killBoss: () => { while (boss && foes.includes(boss)) damageFoe(foes.indexOf(boss)); },
+    bossState: () => ({ active: !!boss, name: boss ? boss.def.name : '', hp: boss ? boss.hp : 0, max: boss ? boss.def.hp : 0, meter: bossMeter, at: BOSS_AT,
+      delay: bossDelay, beaten: [...owned.bosses] }), hitFoe: () => { if (foes.length) damageFoe(foes.length - 1); },
     sputniks: n => spawnSputniks(n), sputnikList: () => sputniks.map(s => ({ x: s.x, y: s.y, state: s.state, hp: s.hp })),
     ufo: (hunt) => spawnUfo(hunt), shootUfo: () => damageUfo(), nuke: () => launchNuke(), cow: () => spawnCow(cam.x + W * 0.3),
     bsod: () => bsodEarth(), konami: () => konami(), pose: x => restPose(x),
@@ -3722,7 +3921,7 @@
     mode: MODE,
     version: VERSION,
     setProperty: (name, value) => window.livelyPropertyListener(name, value),
-    // name: 'up' | 'left' | 'right' | 'down' | 'fire' — used by the on-screen touch buttons
+    // name: 'up' | 'left' | 'right' | 'down' | 'fire' | 'strafeL' | 'strafeR' — used by the on-screen touch buttons
     key(name, down) {
       if (!(name in keys)) return;
       keys[name] = !!down;

@@ -12,16 +12,17 @@ A pixel-art moon lander in two flavours built from one engine:
 | Control | |
 |---|---|
 | ↑ / W | Main engine |
-| ← → / A D | Side thrusters (spin keeps going until you counter-steer) |
+| ← → / A D | Rotate (spin keeps going until you counter-steer) |
 | ↓ / S | Stop spinning |
 | Space | Fire (the weapon overheats if you hold it) |
-| Q | Switch weapon |
+| Q / E | Strafe thrusters: push the ship left / right without turning it |
+| R | Switch weapon |
 | Tab / G | Hangar: upgrades, weapons, ships, worlds (← → switch tabs) |
 | H | Autopilot on/off |
 | Esc / P | Pause (browser game) |
 | Mouse | Drag & throw the rocket; click asteroids, UFOs, Sputniks, shooting stars |
 
-Land gently on both legs for credits. Hit the ground too hard or too tilted and you'll explode or tip over. Spend credits in the hangar on upgrades (engine, gyro, landing legs, laser, shield, star magnet, rainbow exhaust), weapons (laser, scatter gun, railgun, homing missiles) and ships (Classic, Dart, Hauler, Gunship), and unlock the rest of the solar system: Mercury, Venus, Earth, Mars, Io, Titan, Miranda, Triton and Pluto each have their own gravity, colours and sky (the Sun, Jupiter, Saturn, Uranus, Neptune...). Every weapon builds heat as it fires and locks when it overheats. Watch out for UFOs, Sputnik squadrons over the Moon and Earth, drifting mines, and the natives of every other world: Sun Sprites on Mercury, Venusians, Martian tripods, Ionian lava crabs, Titans, Mirandans, Tritonians and Plutonians. There are a few secrets too.
+Land gently on both legs for credits. Hit the ground too hard or too tilted and you'll explode or tip over. Spend credits in the hangar on upgrades (engine, gyro, landing legs, laser, shield, star magnet, rainbow exhaust), weapons (laser, scatter gun, railgun, homing missiles) and ships (Classic, Dart, Hauler, Gunship), and unlock the rest of the solar system: Mercury, Venus, Earth, Mars, Io, Titan, Miranda, Triton and Pluto each have their own gravity, colours and sky (the Sun, Jupiter, Saturn, Uranus, Neptune...). Every weapon builds heat as it fires and locks when it overheats. Watch out for UFOs, Sputnik squadrons over the Moon and Earth, drifting mines, and the natives of every other world: Sun Sprites on Mercury, Venusians, Martian tripods, Ionian lava crabs, Titans, Mirandans, Tritonians and Plutonians. Destroy eight enemies on a world and its boss turns up — ten in all, from Sputnik Prime over the Moon to The Ninth Planet on Pluto. There are a few secrets too.
 
 ## Get it
 

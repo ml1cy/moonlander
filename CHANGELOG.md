@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.0 — 2026-11-12
+
+- **Boss fights** — every world has a boss: Sputnik Prime (Moon), Helios (Mercury), The Cloud Queen (Venus), Defence Station (Earth), The Tripod King (Mars), The Magma King (Io), The Kraken (Titan), The Ice Queen (Miranda), The Trident (Triton) and The Ninth Planet (Pluto). Eight kills on a world fill the boss meter in the HUD; the boss then arrives with a health bar, cycles through its attacks (bursts, rings, rain, lobbed volleys, charges, minions, mines) and speeds up below half health. Beaten bosses are saved and marked in the Worlds tab; beating all ten pays a bonus. New "Boss fights" setting, and a Summon Boss cheat.
+- **Strafe thrusters** — Q and E push the ship left and right along its own axis without turning it. Switching weapon moved from Q to R.
+
 ## 1.3.0 — 2026-11-12
 
 - **Planet natives** — every world except the Moon and Earth has its own enemies while you fly: Sun Sprites (Mercury, dive-bombers), Venusians (hover overhead and drip acid), Martians (tripods that walk the ground and fire heat rays), Ionians (lava crabs that lob arcing lava), Titans (tough, triple shots), Mirandans (ice shards that dash), Tritonians (fast orbiters) and Plutonians (teleport in, fire, vanish).

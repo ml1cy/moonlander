@@ -141,8 +141,8 @@ console.log('web game');
   await page.keyboard.press('Digit1');
   check((await econ()).credits === 4150 + 1000, 'cheat adds credits');
   await page.keyboard.press('Escape');
-  await page.keyboard.press('KeyQ');
-  check((await econ()).weapon === 'laser', 'Q cycles through owned weapons');
+  await page.keyboard.press('KeyR');
+  check((await econ()).weapon === 'laser', 'R cycles through owned weapons');
   check(await page.evaluate(() => JSON.parse(localStorage.getItem('moonLander.save.v1')).weapons.includes('rail')), 'owned weapons are saved');
 
   // every world builds and runs
@@ -161,6 +161,7 @@ console.log('web game');
   // every enemy type spawns, runs, shoots and can be destroyed
   const foeRun = await page.evaluate(() => {
     const d = window.__moonLanderDebug, r = { types: d.foeTypes(), spawned: 0, cleared: 0 };
+    window.MoonLander.setProperty('bosses', false);      // keep the boss out of this test
     d.cheat('god', true);
     for (const type of r.types) {
       const s = d.state();
@@ -172,11 +173,55 @@ console.log('web game');
       if (d.foeList().length === 0) r.cleared++;
     }
     r.aliens = d.state().score.aliens;
+    window.MoonLander.setProperty('bosses', true);
     d.cheat('god', false);
     return r;
   });
   check(foeRun.types.length === 9 && foeRun.spawned === 9 && foeRun.cleared === 9 && foeRun.aliens > 0,
     'all nine enemy types spawn, fight and die ' + JSON.stringify({ spawned: foeRun.spawned, cleared: foeRun.cleared, aliens: foeRun.aliens }));
+
+  // Q / E side thrusters push the ship sideways without turning it
+  const strafe = await page.evaluate(() => {
+    const d = window.__moonLanderDebug, ML = window.MoonLander, r = {};
+    for (const [key, name] of [['strafeR', 'e'], ['strafeL', 'q']]) {
+      const s = d.state();
+      d.place(s.W * 0.5, s.H * 0.3, 0, 0, 0, 0, true);
+      ML.key(key, true);
+      for (let i = 0; i < 30; i++) window.__moonLanderStep(1 / 60);
+      ML.key(key, false);
+      r[name] = d.state().vx; r[name + 'Angle'] = d.state().angle;
+    }
+    return r;
+  });
+  check(strafe.e > 5 && strafe.q < -5 && strafe.eAngle === 0 && strafe.qAngle === 0, `Q / E strafe left and right (vx ${strafe.q.toFixed(1)} / ${strafe.e.toFixed(1)})`);
+
+  // boss fights: kills fill the meter, the boss arrives, attacks, and can be beaten on every world
+  const bossRun = await page.evaluate(() => {
+    const d = window.__moonLanderDebug, r = { fought: 0, names: [] };
+    const fly = () => { const s = d.state(); d.place(s.W * 0.5, s.H * 0.45, 0, 0, 0, 0, true); };
+    const step = n => { for (let i = 0; i < n; i++) window.__moonLanderStep(1 / 60); };
+    d.cheat('god', true);
+    fly(); d.bossKills(8);
+    r.warned = d.bossState().delay > 0;
+    step(200);
+    r.arrived = d.bossState().active;
+    d.killBoss();
+    for (const id of ['mercury', 'venus', 'earth', 'mars', 'io', 'titan', 'miranda', 'triton', 'pluto']) {
+      d.world(id); step(2); fly(); d.boss();
+      const b = d.bossState();
+      if (!b.active) continue;
+      r.names.push(b.name);
+      step(700);                      // long enough to run through every attack
+      if (d.bossState().active) r.fought++;
+      d.killBoss();
+    }
+    d.world('moon'); step(2); fly();
+    r.beaten = d.bossState().beaten.length;
+    d.cheat('god', false);
+    return r;
+  });
+  check(bossRun.warned && bossRun.arrived, 'eight kills bring the boss');
+  check(bossRun.fought === 9 && bossRun.beaten === 10, 'every world has a boss that fights and can be beaten ' + JSON.stringify(bossRun.names));
 
   // every weapon fires; holding fire overheats the gun, and it recovers
   const fired = await page.evaluate(() => {

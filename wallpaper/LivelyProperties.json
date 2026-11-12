@@ -231,6 +231,12 @@
     "text": "Planet natives and mines",
     "help": "Each world has its own enemies (Martians, Plutonians...) and drifting mines turn up anywhere. Like the Sputniks, they only attack while you're flying."
   },
+  "bosses": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Boss fights",
+    "help": "Destroying enemies on a world fills its boss meter. When it is full, that world's boss turns up."
+  },
   "eggs": {
     "type": "checkbox",
     "value": true,

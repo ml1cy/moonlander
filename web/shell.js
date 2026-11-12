@@ -20,7 +20,7 @@
   const WEB_DEFAULTS = { autopilot: false };
   const WEB_HIDE = new Set([]);
   const HELP_OVERRIDE = {
-    keyboardControl: 'Arrow keys / WASD fly, Space fires, Q switches weapon, H toggles autopilot, Tab opens the hangar.',
+    keyboardControl: 'Arrow keys / WASD fly, Q / E strafe, Space fires, R switches weapon, H toggles autopilot, Tab opens the hangar.',
     autopilot: 'When on, autopilot flies the ship home after it has been left alone. H toggles it.'
   };
 
