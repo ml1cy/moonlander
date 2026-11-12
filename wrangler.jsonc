@@ -1,0 +1,11 @@
+{
+  // Cloudflare Workers static-assets deployment for the browser game.
+  // Build first: `npm run build:web` (Cloudflare's build step does this), then `npx wrangler deploy`.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "moon-lander",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist/web",
+    "not_found_handling": "single-page-application"
+  }
+}

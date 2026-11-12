@@ -1,0 +1,252 @@
+{
+  "labelShip": {
+    "type": "label",
+    "value": "Ship"
+  },
+  "bodyColor": {
+    "text": "Hull color",
+    "type": "color",
+    "value": "#BDC6CB"
+  },
+  "trimColor": {
+    "text": "Fins & nose color",
+    "type": "color",
+    "value": "#BDC6CB"
+  },
+  "decalColor": {
+    "text": "Decal & stripe color",
+    "type": "color",
+    "value": "#3E67FC"
+  },
+  "flameStyle": {
+    "type": "dropdown",
+    "value": 0,
+    "text": "Engine flame",
+    "items": [
+      "Solid color",
+      "Rainbow"
+    ]
+  },
+  "flameColor": {
+    "text": "Flame color",
+    "type": "color",
+    "value": "#FF9A2A"
+  },
+  "laserColor": {
+    "text": "Laser color",
+    "type": "color",
+    "value": "#7FF0FF"
+  },
+  "rocketScale": {
+    "type": "dropdown",
+    "value": 0,
+    "text": "Rocket size",
+    "items": [
+      "1x",
+      "2x",
+      "3x"
+    ]
+  },
+  "labelLook": {
+    "type": "label",
+    "value": "Scene"
+  },
+  "pixelSize": {
+    "max": 8,
+    "min": 1,
+    "step": 1,
+    "text": "Pixel size",
+    "type": "slider",
+    "help": "Size of one art pixel at 1080p. Larger = chunkier pixels and a bigger rocket.",
+    "value": 3
+  },
+  "skyTop": {
+    "text": "Sky top color",
+    "type": "color",
+    "value": "#03040C"
+  },
+  "skyBottom": {
+    "text": "Sky horizon color",
+    "type": "color",
+    "value": "#1D1A3C"
+  },
+  "groundColor": {
+    "text": "Moon surface color",
+    "type": "color",
+    "value": "#A9A7B6"
+  },
+  "starDensity": {
+    "max": 100,
+    "min": 0,
+    "step": 1,
+    "text": "Star density",
+    "type": "slider",
+    "value": 50
+  },
+  "showEarth": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Show Earth"
+  },
+  "earthSpin": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Earth rotates",
+    "help": "In Clean loop mode Earth turns exactly once per loop so the animation stays seamless"
+  },
+  "shootingStars": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Shooting stars"
+  },
+  "newMoon": {
+    "text": "Generate a new moonscape",
+    "type": "button",
+    "value": "New moon"
+  },
+  "labelFlight": {
+    "type": "label",
+    "value": "Flight"
+  },
+  "flightMode": {
+    "type": "dropdown",
+    "value": 0,
+    "text": "Idle flight pattern",
+    "help": "Clean loop flies the same route from the same pad every time. Random hops lands somewhere new each flight.",
+    "items": [
+      "Clean loop",
+      "Random hops"
+    ]
+  },
+  "worldSize": {
+    "type": "dropdown",
+    "value": 1,
+    "text": "Flying space",
+    "help": "How wide the moon is when you fly it yourself. The world wraps around and the camera follows the ship.",
+    "items": [
+      "Screen only",
+      "3 screens wide + sky",
+      "5 screens wide + sky"
+    ]
+  },
+  "flightSpeed": {
+    "max": 300,
+    "min": 25,
+    "step": 5,
+    "text": "Autopilot speed (%)",
+    "type": "slider",
+    "value": 100
+  },
+  "restTime": {
+    "max": 60,
+    "min": 1,
+    "step": 1,
+    "text": "Time on surface (s)",
+    "type": "slider",
+    "value": 6
+  },
+  "labelPlay": {
+    "type": "label",
+    "value": "Interaction"
+  },
+  "keyboardControl": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Fly with arrow keys / WASD (Space fires, H autopilot, Tab upgrades)",
+    "help": "Also enable keyboard input in Lively: Settings > Wallpaper > Interaction > Wallpaper Input > Keyboard"
+  },
+  "dragRocket": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Drag and throw the rocket"
+  },
+  "asteroids": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Asteroids"
+  },
+  "crashes": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Hard landings explode",
+    "help": "Off = the rocket just bounces"
+  },
+  "autopilot": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Autopilot",
+    "help": "When on, autopilot flies the ship home after it has been left alone. Press H in-game to toggle it."
+  },
+  "idleReturn": {
+    "max": 120,
+    "min": 5,
+    "step": 1,
+    "text": "Autopilot takes over after idle (s)",
+    "type": "slider",
+    "value": 20
+  },
+  "steering": {
+    "max": 200,
+    "min": 25,
+    "step": 5,
+    "text": "Steering sensitivity (%)",
+    "type": "slider",
+    "value": 100
+  },
+  "showHud": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Show score while playing"
+  },
+  "clickToFly": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Click ground to pick landing site",
+    "help": "Random hops mode only"
+  },
+  "mouseParallax": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Mouse parallax on stars"
+  },
+  "labelFun": {
+    "type": "label",
+    "value": "Fun"
+  },
+  "aliens": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Alien visits",
+    "help": "UFOs show up now and then while you're playing. Shoot or click them three times."
+  },
+  "sputniks": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Sputnik attacks",
+    "help": "Enemy Sputnik squadrons attack while you're flying the ship yourself. They retreat when autopilot takes over."
+  },
+  "eggs": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Easter eggs"
+  },
+  "resetProgress": {
+    "text": "Reset credits, upgrades and score",
+    "type": "button",
+    "value": "Reset"
+  },
+  "labelPerf": {
+    "type": "label",
+    "value": "Performance"
+  },
+  "fpsLimit": {
+    "type": "dropdown",
+    "value": 1,
+    "text": "Frame rate limit",
+    "items": [
+      "30 fps",
+      "60 fps",
+      "Uncapped"
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "moon-lander",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pixel-art moon lander: a Lively Wallpaper and a browser game sharing one engine.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:web": "node scripts/build.mjs web",
+    "build:wallpaper": "node scripts/build.mjs wallpaper",
+    "validate": "node scripts/validate.mjs",
+    "test": "node scripts/build.mjs && node tests/smoke.mjs",
+    "serve": "node scripts/serve.mjs",
+    "deploy": "node scripts/build.mjs web && npx wrangler deploy"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

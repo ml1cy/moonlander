@@ -1,0 +1,121 @@
+:root {
+  --bg: #03040c;
+  --panel: rgba(8, 11, 23, 0.92);
+  --line: #3b4a7a;
+  --text: #e8ecff;
+  --muted: #a9b4d6;
+  --gold: #ffd75a;
+  --accent: #7ff0ff;
+  --pixel: 'Press Start 2P', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; width: 100%; height: 100%; overflow: hidden;
+  background: var(--bg); color: var(--text);
+  font-family: var(--pixel); font-size: 12px; line-height: 1.6;
+  user-select: none; -webkit-user-select: none;
+  overscroll-behavior: none;
+}
+#scene {
+  position: absolute; left: 0; top: 0;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+  touch-action: none;
+}
+
+.hidden { display: none !important; }
+
+/* ---------- overlays ---------- */
+.overlay {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  padding: 16px; z-index: 10;
+}
+#title { background: linear-gradient(180deg, rgba(3,4,12,0.15), rgba(3,4,12,0.55)); }
+#pause { background: rgba(3, 4, 12, 0.6); }
+.panel {
+  background: var(--panel); border: 2px solid var(--line);
+  box-shadow: 0 0 0 2px #05060f, 6px 6px 0 #05060f;
+  padding: 28px 28px 22px; max-width: 460px; width: 100%;
+  text-align: center;
+}
+h1 {
+  font-size: clamp(28px, 7vw, 48px); line-height: 1.15; margin: 0 0 10px;
+  color: #ffe8a8; text-shadow: 4px 4px 0 #05060f;
+  letter-spacing: 2px;
+}
+h2 { font-size: 16px; margin: 0 0 18px; color: #ffe8a8; }
+.tag { color: var(--muted); margin: 0 0 22px; }
+.small { font-size: 9px; color: var(--muted); margin: 14px 0 0; line-height: 1.8; }
+.keys {
+  display: grid; grid-template-columns: auto 1fr; gap: 6px 14px;
+  text-align: left; margin: 22px auto 0; max-width: 330px; font-size: 10px;
+}
+.keys dt { color: var(--gold); text-align: right; }
+.keys dd { margin: 0; color: var(--text); }
+.touch-only { display: none; }
+@media (pointer: coarse) { .touch-only { display: block; } }
+
+/* ---------- buttons ---------- */
+.btn {
+  font: inherit; font-size: 12px; color: var(--text); cursor: pointer;
+  background: #121a36; border: 2px solid var(--line);
+  padding: 12px 22px; margin: 6px; box-shadow: 3px 3px 0 #05060f;
+}
+.btn:hover { background: #1c2650; }
+.btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #05060f; }
+.btn.primary { background: #2a3b7a; border-color: var(--accent); color: #fff; font-size: 14px; padding: 14px 40px; }
+.btn.primary:hover { background: #34489a; }
+.btn:focus-visible, .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.icon-btn {
+  font: 20px/1 system-ui, sans-serif; color: var(--muted); cursor: pointer;
+  background: rgba(13, 20, 48, 0.75); border: 2px solid var(--line);
+  width: 40px; height: 40px; display: grid; place-items: center;
+}
+.icon-btn:hover { color: #fff; }
+.icon-btn.small { width: 32px; height: 32px; font-size: 18px; }
+#gear { position: fixed; right: 12px; bottom: 12px; z-index: 20; }
+
+/* ---------- settings drawer ---------- */
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 30;
+  width: min(360px, 100vw); display: flex; flex-direction: column;
+  background: var(--panel); border-left: 2px solid var(--line);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 13px; line-height: 1.4;
+  user-select: auto;
+}
+.drawer header, .drawer footer { padding: 14px 16px; border-bottom: 1px solid #222c4d; }
+.drawer header { display: flex; align-items: center; justify-content: space-between; }
+.drawer header h2 { margin: 0; font-family: var(--pixel); font-size: 13px; }
+.drawer footer { border-bottom: 0; border-top: 1px solid #222c4d; text-align: center; }
+.drawer footer .btn { font-family: var(--pixel); font-size: 9px; }
+#settingsBody { overflow-y: auto; padding: 6px 16px 18px; flex: 1; }
+.set-label {
+  font-family: var(--pixel); font-size: 10px; color: var(--gold);
+  margin: 20px 0 8px; padding-top: 12px; border-top: 1px solid #222c4d;
+}
+.set-label:first-child { border-top: 0; margin-top: 8px; }
+.set-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; padding: 7px 0; }
+.set-row label { color: var(--text); }
+.set-row .help { grid-column: 1 / -1; color: var(--muted); font-size: 11px; }
+.set-row input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+.set-row .val { color: var(--gold); font-variant-numeric: tabular-nums; }
+.set-row select, .set-row button {
+  font: inherit; color: var(--text); background: #121a36; border: 1px solid var(--line); padding: 5px 8px;
+}
+.set-row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+.set-row input[type=color] { width: 44px; height: 28px; padding: 0; border: 1px solid var(--line); background: none; }
+
+/* ---------- touch controls ---------- */
+#touch { position: fixed; inset: auto 0 0 0; z-index: 15; pointer-events: none; display: flex; justify-content: space-between; padding: 0 12px calc(12px + env(safe-area-inset-bottom)); }
+#touch .pad { display: flex; gap: 10px; align-items: flex-end; pointer-events: auto; }
+#touch button {
+  width: 64px; height: 64px; border-radius: 50%; touch-action: none;
+  font: 22px/1 system-ui, sans-serif; color: #fff;
+  background: rgba(30, 44, 96, 0.55); border: 2px solid rgba(127, 240, 255, 0.5);
+}
+#touch button.big { width: 84px; height: 84px; font-size: 30px; }
+#touch button.small-btn { width: 46px; height: 46px; font-size: 13px; font-family: var(--pixel); }
+#touch button.on { background: rgba(127, 240, 255, 0.45); }
+/* while playing on a touch screen the bottom corners belong to the controls */
+body.touch.playing #gear { top: 64px; bottom: auto; right: auto; left: 10px; width: 34px; height: 34px; font-size: 17px; }

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moon Lander</title>
+  <style>
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #03040c; cursor: default; user-select: none; }
+    /* Rendered at low resolution and scaled up with nearest-neighbour so pixels stay crisp. */
+    #scene { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; }
+  </style>
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <script>window.MOON_LANDER = { mode: 'wallpaper' };</script>
+  <script src="rocket-data.js"></script>
+  <script src="engine.js"></script>
+</body>
+</html>

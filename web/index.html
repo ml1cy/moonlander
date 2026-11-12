@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Moon Lander</title>
+  <meta name="description" content="A pixel-art lunar lander. Fly with real landing physics, blast asteroids, UFOs and Sputniks, earn credits and buy upgrades.">
+  <meta name="theme-color" content="#03040c">
+  <meta property="og:title" content="Moon Lander">
+  <meta property="og:description" content="Pixel-art lunar lander with landing physics, asteroids, UFOs, Sputniks and upgrades.">
+  <meta property="og:image" content="og.jpg">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="scene" aria-label="Moon Lander game"></canvas>
+
+  <!-- Title screen: the wallpaper's idle loop plays behind it as an attract mode -->
+  <div id="title" class="overlay">
+    <div class="panel">
+      <h1>Moon<br>Lander</h1>
+      <p class="tag">Land it. Don't flip it.</p>
+      <button id="play" class="btn primary">Play</button>
+      <dl class="keys">
+        <dt>&uarr;</dt><dd>Thrust</dd>
+        <dt>&larr; &rarr;</dt><dd>Rotate (spin keeps going)</dd>
+        <dt>&darr;</dt><dd>Stop spinning</dd>
+        <dt>Space</dt><dd>Fire</dd>
+        <dt>Tab</dt><dd>Upgrades</dd>
+        <dt>H</dt><dd>Autopilot on/off</dd>
+        <dt>Esc</dt><dd>Pause</dd>
+      </dl>
+      <p class="small">Drag the rocket to throw it. Click asteroids, UFOs and shooting stars.</p>
+      <p class="small touch-only">On a phone? Turn it sideways and use the on-screen buttons.</p>
+    </div>
+  </div>
+
+  <div id="pause" class="overlay hidden">
+    <div class="panel">
+      <h2>Paused</h2>
+      <button id="resume" class="btn primary">Resume</button>
+      <button id="pauseSettings" class="btn">Settings</button>
+    </div>
+  </div>
+
+  <button id="gear" class="icon-btn" aria-label="Settings" title="Settings">&#9881;</button>
+
+  <aside id="settings" class="drawer hidden" aria-label="Settings">
+    <header>
+      <h2>Settings</h2>
+      <button id="closeSettings" class="icon-btn small" aria-label="Close settings">&times;</button>
+    </header>
+    <div id="settingsBody"></div>
+    <footer>
+      <button id="resetSettings" class="btn">Reset settings to default</button>
+      <p class="small" id="version"></p>
+    </footer>
+  </aside>
+
+  <!-- On-screen controls for touch devices -->
+  <div id="touch" class="hidden" aria-hidden="true">
+    <div class="pad left">
+      <button data-key="left">&#9664;</button>
+      <button data-key="right">&#9654;</button>
+      <button data-key="down" class="small-btn">&#9632;</button>
+    </div>
+    <div class="pad right">
+      <button data-action="menu" class="small-btn">$</button>
+      <button data-action="autopilot" class="small-btn">AP</button>
+      <button data-key="fire">&#10038;</button>
+      <button data-key="up" class="big">&#9650;</button>
+    </div>
+  </div>
+
+  <script>window.MOON_LANDER = { mode: 'game', defaults: { autopilot: false } };</script>
+  <script src="rocket-data.js"></script>
+  <script src="engine.js"></script>
+  <script src="shell.js"></script>
+</body>
+</html>

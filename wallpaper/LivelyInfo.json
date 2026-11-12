@@ -1,0 +1,14 @@
+{
+  "AppVersion": "2.0.7.0",
+  "Title": "Moon Lander",
+  "Thumbnail": "thumbnail.jpg",
+  "Preview": "preview.gif",
+  "Desc": "Pixel-art rocket that loops seamlessly over the Moon while Earth turns. Fly it yourself with real landing physics, earn credits from stars, asteroids, UFOs and landings, and spend them on upgrades. Customise the ship's colours. Rumour has it there are secrets.",
+  "Author": "Ijaz Ali",
+  "License": "",
+  "Contact": "",
+  "Type": 1,
+  "FileName": "index.html",
+  "Arguments": "--pause-event true",
+  "IsAbsolutePath": false
+}
