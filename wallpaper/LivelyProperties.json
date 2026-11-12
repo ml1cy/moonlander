@@ -231,6 +231,12 @@
     "text": "Planet natives and mines",
     "help": "Each world has its own enemies (Martians, Plutonians...) and drifting mines turn up anywhere. Like the Sputniks, they only attack while you're flying."
   },
+  "zoomCamera": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Zoom out at altitude",
+    "help": "The camera pulls back as you climb, so you can see more of the sky, and closes in again as you come down to land."
+  },
   "bosses": {
     "type": "checkbox",
     "value": true,

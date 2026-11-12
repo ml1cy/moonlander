@@ -177,8 +177,25 @@ console.log('web game');
     d.cheat('god', false);
     return r;
   });
-  check(foeRun.types.length === 9 && foeRun.spawned === 9 && foeRun.cleared === 9 && foeRun.aliens > 0,
-    'all nine enemy types spawn, fight and die ' + JSON.stringify({ spawned: foeRun.spawned, cleared: foeRun.cleared, aliens: foeRun.aliens }));
+  check(foeRun.types.length === 10 && foeRun.spawned === 10 && foeRun.cleared === 10 && foeRun.aliens > 0,
+    'all ten enemy types spawn, fight and die ' + JSON.stringify({ spawned: foeRun.spawned, cleared: foeRun.cleared, aliens: foeRun.aliens }));
+
+  // the camera zooms out with altitude and back in near the ground
+  const zoomRun = await page.evaluate(() => {
+    const d = window.__moonLanderDebug, r = {};
+    const step = n => { for (let i = 0; i < n; i++) window.__moonLanderStep(1 / 60); };
+    window.MoonLander.setProperty('natives', false); window.MoonLander.setProperty('sputniks', false);
+    d.cheat('god', true);
+    let s = d.state();
+    for (let i = 0; i < 90; i++) { d.place(s.W * 0.5, -s.CEIL * 0.8, 0, 0, 0, 0, true); step(1); }
+    r.high = d.state().zoom; r.alt = d.state().alt;
+    for (let i = 0; i < 300; i++) { d.place(s.W * 0.5, s.H * 0.5, 0, 0, 0, 0, true); step(1); }
+    r.low = d.state().zoom;
+    window.MoonLander.setProperty('natives', true); window.MoonLander.setProperty('sputniks', true);
+    d.cheat('god', false);
+    return r;
+  });
+  check(zoomRun.high < 0.75 && zoomRun.low === 1, `camera zooms out up high (${zoomRun.high.toFixed(2)}) and back to 1 near the ground`);
 
   // Q / E side thrusters push the ship sideways without turning it
   const strafe = await page.evaluate(() => {

@@ -54,6 +54,7 @@
     sputniks: true,
     natives: true,
     bosses: true,
+    zoomCamera: true,
     eggs: true,
     cheats: true,
     bodyColor: '#bdc6cb',
@@ -128,6 +129,7 @@
       case 'aliens': cfg.aliens = !!val; break;
       case 'eggs': cfg.eggs = !!val; break;
       case 'natives': cfg.natives = !!val; if (!val) foes.length = 0; break;
+      case 'zoomCamera': cfg.zoomCamera = !!val; break;
       case 'bosses': cfg.bosses = !!val; if (!val && boss) boss.state = 'leave'; break;
       case 'cheats': cfg.cheats = !!val; break;
       case 'sputniks': cfg.sputniks = !!val; if (!val) sputniks.length = 0; break;
@@ -246,6 +248,17 @@
   const wd = d => d - WW * Math.round(d / WW);          // shortest wrapped distance
   const sxOf = x => W / 2 + wd(x - rcx - W / 2);
   const syOf = y => y - rcy;
+  // Camera zoom (1 = normal, < 1 = zoomed out). The world layer is scaled about the bottom-centre
+  // of the screen, so these give the part of the world that is actually visible.
+  let zoom = 1;
+  const viewL = () => cam.x + W / 2 - W / (2 * zoom);
+  const viewR = () => cam.x + W / 2 + W / (2 * zoom);
+  const viewT = () => cam.y + H - H / zoom;
+  const viewH = () => H / zoom;
+  // true when a point (in sxOf/syOf coordinates) is outside the zoomed view by more than m
+  const offView = (x, y, m) => x < W / 2 - W / (2 * zoom) - m || x > W / 2 + W / (2 * zoom) + m || y < H - H / zoom - m || y > H + m;
+  // How high the ship is, 0 (near the ground) to 1 (top of the sky)
+  const altFrac = () => (ground && CEIL ? clamp((groundY(rocket.x) - rocket.y - H * 0.4) / (CEIL - H * 0.2), 0, 1) : 0);
 
   let ground = null, ridgeH = null;
   let skyCanvas, ridgeCanvas, fgCanvas;
@@ -264,7 +277,7 @@
     H = Math.ceil(physH / PS);
     S = H / 360;
     WW = W * Math.max(1, cfg.worldSize | 0);
-    CEIL = cfg.worldSize > 1 ? Math.round(H * 1.5) : 0;
+    CEIL = cfg.worldSize > 1 ? Math.round(H * 2.5) : 0;
     RW = W * 2;
 
     canvas.width = W;
@@ -894,7 +907,7 @@
       const a = p.age;
       const size = Math.max(1, Math.round(lerp(p.s0, p.s1, a)));
       const x = Math.round(sxOf(p.x) - size / 2), y = Math.round(syOf(p.y) - size / 2);
-      if (x < -8 || x > W + 8 || y < -8 || y > H + 8) continue;
+      if (offView(x, y, 8)) continue;
       let col, alpha;
       if (p.kind === 'fire') {
         if (p.hue != null) col = a < 0.3 ? rgbStr(hslRgb(p.hue, 1, 0.65)) : a < 0.45 ? '#e2cfb4' : '#a9a6b4';
@@ -1082,8 +1095,8 @@
     const size = Math.random() < 0.45 ? 2 : 1;
     const r = ASTEROID_R[size] * S, sp = H * rand(0.1, 0.22);
     spawnAsteroid({
-      x: cam.x + (dir > 0 ? -r - 4 : W + r + 4), y: cam.y + rand(0.06, 0.42) * H,
-      vx: dir * sp, vy: rand(-0.15, 0.25) * sp, size, life: (W + 2 * r + 20) / sp + 2
+      x: dir > 0 ? viewL() - r - 4 : viewR() + r + 4, y: viewT() + rand(0.06, 0.42) * viewH(),
+      vx: dir * sp, vy: rand(-0.15, 0.25) * sp, size, life: (W / zoom + 2 * r + 20) / sp + 2
     });
   }
 
@@ -1137,7 +1150,7 @@
   function drawAsteroids() {
     for (const a of asteroids) {
       const x = Math.round(sxOf(a.x)), y = Math.round(syOf(a.y));
-      if (x < -30 || x > W + 30 || y < -30 || y > H + 30) continue;
+      if (offView(x, y, 30)) continue;
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(a.a);
@@ -1970,7 +1983,7 @@
 
   // ================================================================ UFO
   let ufo = null;
-  let ufoTimer = rand(20, 40);
+  let ufoTimer = rand(15, 30);
   const plasma = [];
   const escapees = [];
   const ufoUnit = () => Math.max(1, Math.round(S));
@@ -1979,7 +1992,7 @@
     if (ufo || !ground) return;
     const side = Math.random() < 0.5 ? -1 : 1;
     ufo = {
-      x: cam.x + (side < 0 ? -40 * S : W + 40 * S), y: cam.y + H * rand(0.08, 0.2), vx: 0, vy: 0,
+      x: side < 0 ? viewL() - 40 * S : viewR() + 40 * S, y: viewT() + viewH() * rand(0.08, 0.2), vx: 0, vy: 0,
       state: 'enter', t: 0, hp: 3, hunt: visibleRocket() && (forceHunt || Math.random() < 0.7),
       tx: cam.x + rand(0.25, 0.75) * W, hitT: 0, angry: false, fireT: 1.2, carrying: false, beam: false
     };
@@ -2001,8 +2014,8 @@
   function updateUfo(dt) {
     const playing = cfg.flightMode === 1 || rocket.mode !== 'auto' || time - lastInteract < 60;
     if (cfg.aliens && !ufo && playing && !boss) {
-      ufoTimer -= dt;
-      if (ufoTimer <= 0) { ufoTimer = rand(40, 90); spawnUfo(); }
+      ufoTimer -= dt * (1 + altFrac());
+      if (ufoTimer <= 0) { ufoTimer = rand(25, 55); spawnUfo(); }
     }
 
     for (let i = plasma.length - 1; i >= 0; i--) {
@@ -2103,7 +2116,7 @@
       case 'leave':
         ufo.vx += (wd(ufo.x - (cam.x + W / 2)) >= 0 ? 1 : -1) * H * 0.4 * dt;
         ufo.vy -= H * 0.5 * dt;
-        if (ufo.y < cam.y - 80 * S || Math.abs(wd(ufo.x - (cam.x + W / 2))) > W) {
+        if (ufo.y < viewT() - 80 * S || Math.abs(wd(ufo.x - (cam.x + W / 2))) > W / zoom) {
           if (ufo.carrying) rocket.takenT = 2.5;
           ufo = null;
           return;
@@ -2164,7 +2177,7 @@
     if (!ufo) return;
     const u = ufoUnit();
     const cx = Math.round(sxOf(ufo.x)), cy = Math.round(syOf(ufo.y) + Math.sin(time * 3) * 1.5 * u);
-    if (cx < -40 * u || cx > W + 40 * u) return;
+    if (offView(cx, cy, 40 * u)) return;
     const px = (x, y, col) => { ctx.fillStyle = col; ctx.fillRect(cx + x * u, cy + y * u, u, u); };
     const white = ufo.hitT > 0;
     // dome
@@ -2206,18 +2219,18 @@
   // satellites, fire pellets, make diving ramming runs, and retreat if autopilot
   // takes over (so the idle loop stays untouched).
   const sputniks = [];
-  let sputTimer = rand(18, 30);
+  let sputTimer = rand(8, 14);
   let wave = null;          // { size, killed }
 
   function spawnSputniks(n) {
     if (!ground || !visibleRocket()) return;
-    n = Math.min(n, 6 - sputniks.length);
+    n = Math.min(n, 8 - sputniks.length);
     if (n <= 0) return;
     const side = Math.random() < 0.5 ? -1 : 1;
     for (let i = 0; i < n; i++) {
       sputniks.push({
-        x: cam.x + (side < 0 ? -30 : W + 30) * S + side * i * 18 * S,
-        y: cam.y + H * rand(0.08, 0.35),
+        x: (side < 0 ? viewL() - 30 * S : viewR() + 30 * S) + side * i * 18 * S,
+        y: viewT() + viewH() * rand(0.08, 0.35),
         vx: -side * H * 0.2, vy: 0,
         orbitA: rand(0, TAU), orbitR: rand(60, 85) * S * RS, orbitW: rand(0.6, 1.0) * (Math.random() < 0.5 ? -1 : 1),
         state: 'orbit', t: 0, diveT: rand(4, 8), fireT: rand(1.2, 2.5), beepT: rand(0.5, 3),
@@ -2262,9 +2275,11 @@
 
   function updateSputniks(dt) {
     const flying = rocket.mode === 'manual' || rocket.mode === 'drag';
-    if (cfg.sputniks && flying && !sputniks.length && !NATIVES[worldDef.id] && !boss) {
-      sputTimer -= dt;
-      if (sputTimer <= 0) { sputTimer = rand(30, 60); spawnSputniks(1 + Math.floor(Math.random() * 3)); }
+    // waves come faster, bigger and overlap more the higher the ship flies
+    const high = altFrac();
+    if (cfg.sputniks && flying && sputniks.length <= Math.round(3 * high) && !NATIVES[worldDef.id] && !boss) {
+      sputTimer -= dt * (1 + 2 * high);
+      if (sputTimer <= 0) { sputTimer = rand(14, 26); spawnSputniks(2 + Math.floor(Math.random() * 3) + Math.round(2 * high)); }
     }
     const target = visibleRocket() && rocket.mode !== 'abducted';
     const giveUp = !flying || !target;
@@ -2299,7 +2314,7 @@
         if (s.t > 1.1) { s.state = 'orbit'; s.diveT = rand(5, 9); s.orbitA = Math.atan2(s.y - rocket.y, wd(s.x - rocket.x)); }
       } else {        // leave: climb away and vanish
         ax = (s.vx >= 0 ? 1 : -1) * H * 0.4; ay = -H * 0.5; maxSp = H * 0.5;
-        if (s.y < cam.y - 60 * S || Math.abs(wd(s.x - (cam.x + W / 2))) > W) { sputniks.splice(i, 1); continue; }
+        if (s.y < viewT() - 60 * S || Math.abs(wd(s.x - (cam.x + W / 2))) > W / zoom) { sputniks.splice(i, 1); continue; }
       }
       s.vx += ax * dt; s.vy += ay * dt;
       const sp = Math.hypot(s.vx, s.vy);
@@ -2320,7 +2335,7 @@
     const u = Math.max(1, Math.round(S));
     for (const s of sputniks) {
       const cx = Math.round(sxOf(s.x)), cy = Math.round(syOf(s.y));
-      if (cx < -40 || cx > W + 40 || cy < -40 || cy > H + 40) continue;
+      if (offView(cx, cy, 40)) continue;
       // four antennas trailing behind the direction of travel
       const back = Math.atan2(-s.vy, -s.vx || -0.001);
       ctx.fillStyle = s.hitT > 0 ? '#ffffff' : '#b8bec9';
@@ -2368,6 +2383,10 @@
     mine: { name: 'MINES', ai: 'mine', hp: 1, reward: 5, r: 4, count: [3, 5], col: '#ff5a3a',
       pal: { a: '#7d8496', c: '#c9ced8', k: '#3a3f4d', e: '#ff3b3b' },
       rows: ['k..k..k', '.kaaak.', '.aacaa.', 'kaceack', '.aaaaa.', '.kaaak.', 'k..k..k'] },
+    raider: { name: 'SKY RAIDERS', ai: 'hover', orbitW: 1.1, hp: 2, reward: 14, r: 4, speed: 0.4, fire: [1, 1.8], shot: 'aim', shotSp: 0.4, count: [2, 4],
+      col: '#ff5ad0',
+      pal: { a: '#9aa4b8', b: '#5a6278', c: '#e8ecff', e: '#ff5ad0', k: '#ffb04a' },
+      rows: ['....a....', '...aca...', '...aea...', 'b.aaaaa.b', 'baaaaaaab', 'ba.aaa.ab', 'b...k...b'] },
     sunsprite: { name: 'SUN SPRITES', ai: 'diver', hp: 1, reward: 12, r: 4, count: [2, 4], col: '#ff9a2a',
       pal: { a: '#ff9a2a', c: '#ffe07a', e: '#3a1400' },
       rows: ['..cac..', '.caaac.', 'caeaeac', 'aaaaaaa', 'caaaaac', '.caaac.', '..cac..'] },
@@ -2406,7 +2425,7 @@
     titan: 'titan', miranda: 'mirandan', triton: 'tritonian', pluto: 'plutonian'
   };
   const foes = [];
-  let foeTimer = rand(12, 20);
+  let foeTimer = rand(6, 12);
   let foeWave = null;       // { size, killed }
   const foeUnit = () => 2 * Math.max(1, Math.round(S));     // sprites are drawn at twice the art-pixel scale
   const foeScale = def => foeUnit() * (def.scale || 1);     // bosses are bigger still
@@ -2429,14 +2448,14 @@
   function spawnFoes(type, n) {
     const def = FOE_TYPES[type];
     if (!def || !ground || !visibleRocket()) return;
-    n = Math.min(n || Math.round(rand(def.count[0], def.count[1])), 8 - foes.length);
+    n = Math.min(n || Math.round(rand(def.count[0], def.count[1]) + 2 * altFrac()), 12 - foes.length);
     if (n <= 0) return;
     const side = Math.random() < 0.5 ? -1 : 1, u = foeScale(def);
     for (let i = 0; i < n; i++) {
       const f = { type, def, hp: def.hp, hitT: 0, t: 0, st: 0, life: 50, state: 'hunt', sub: '', x: 0, y: 0, vx: 0, vy: 0, a: 1,
         fireT: def.fire ? rand(def.fire[0], def.fire[1]) : 0, cryT: rand(1, 5), oa: rand(0, TAU), phase: rand(0, TAU), wait: rand(1, 2.2) };
       if (def.ai === 'walker') {
-        f.x = wrapX(cam.x + (side < 0 ? -20 * S : W + 20 * S) + side * i * 26 * S);
+        f.x = wrapX((side < 0 ? viewL() - 20 * S : viewR() + 20 * S) + side * i * 26 * S);
         f.y = groundY(f.x) - foeSprite(def).h * u / 2 + 1;
         f.keep = rand(55, 110) * S;
       } else if (def.ai === 'mine') {
@@ -2447,8 +2466,8 @@
       } else if (def.ai === 'blinker') {
         f.a = 0; f.sub = 'hidden'; f.wait = rand(0.2, 1.2);
       } else {
-        f.x = wrapX(cam.x + (side < 0 ? -30 : W + 30) * S + side * i * 18 * S);
-        f.y = cam.y + H * rand(0.08, 0.35);
+        f.x = wrapX((side < 0 ? viewL() - 30 * S : viewR() + 30 * S) + side * i * 18 * S);
+        f.y = viewT() + viewH() * rand(0.08, 0.35);
         f.vx = -side * H * 0.2;
       }
       foes.push(f);
@@ -2528,12 +2547,16 @@
 
   function updateFoes(dt) {
     const flying = rocket.mode === 'manual' || rocket.mode === 'drag';
-    if (cfg.natives && flying && !foes.length && !boss) {
-      foeTimer -= dt;
+    // waves come faster, bigger and overlap more the higher the ship flies; up high the Sky Raiders
+    // join in (ground walkers can't reach the ship there)
+    const high = altFrac();
+    if (cfg.natives && flying && foes.length <= Math.round(5 * high) && !boss) {
+      foeTimer -= dt * (1 + 2 * high);
       if (foeTimer <= 0) {
-        foeTimer = rand(22, 40);
-        const nat = NATIVES[worldDef.id];
-        spawnFoes(nat && Math.random() < 0.75 ? nat : 'mine');
+        foeTimer = rand(10, 20);
+        const nat = NATIVES[worldDef.id], walker = nat && FOE_TYPES[nat].ai === 'walker';
+        const roll = Math.random();
+        spawnFoes(high > 0.35 && (walker || roll < 0.45) ? 'raider' : nat && roll < 0.8 ? nat : 'mine');
       }
     }
     const giveUp = !flying || !visibleRocket() || rocket.mode === 'abducted';
@@ -2552,7 +2575,7 @@
         else {
           f.vx += (f.vx >= 0 ? 1 : -1) * H * 0.4 * dt; f.vy -= H * 0.5 * dt;
           f.x = wrapX(f.x + f.vx * dt); f.y += f.vy * dt;
-          if (f.y < cam.y - 60 * S || Math.abs(wd(f.x - (cam.x + W / 2))) > W) foes.splice(i, 1);
+          if (f.y < viewT() - 60 * S || Math.abs(wd(f.x - (cam.x + W / 2))) > W / zoom) foes.splice(i, 1);
         }
         continue;
       }
@@ -2625,7 +2648,7 @@
   function drawFoes() {
     for (const f of foes) {
       const u = foeScale(f.def), spr = foeSprite(f.def), cx = Math.round(sxOf(f.x)), cy = Math.round(syOf(f.y));
-      if (f.a <= 0 || cx < -80 || cx > W + 80 || cy < -80 || cy > H + 80) continue;
+      if (f.a <= 0 || offView(cx, cy, 80)) continue;
       const lit = f.hitT > 0 || (f.sub === 'fuse' && Math.floor(time * 16) % 2) || (f.sub === 'aim' && f.st > 0.6);
       ctx.globalAlpha = clamp(f.a, 0, 1);
       ctx.drawImage(lit ? spr.wh : spr.cv, cx - Math.round(spr.w * u / 2), cy - Math.round(spr.h * u / 2), spr.w * u, spr.h * u);
@@ -2688,7 +2711,7 @@
     const side = Math.random() < 0.5 ? -1 : 1, u = foeScale(def);
     const f = { type: 'boss', def, hp: def.hp, hitT: 0, t: 0, st: 0, life: 1e9, state: 'hunt', sub: '', vx: 0, vy: 0, a: 1,
       fireT: 2.5, cryT: 1e9, oa: rand(0, TAU), phase: rand(0, TAU), wait: 0.5, atk: 0, raged: false,
-      x: wrapX(cam.x + (side < 0 ? -50 * S : W + 50 * S)), y: cam.y + H * 0.15, keep: 130 * S };
+      x: wrapX(side < 0 ? viewL() - 50 * S : viewR() + 50 * S), y: viewT() + viewH() * 0.15, keep: 130 * S };
     if (def.move === 'ground') f.y = groundY(f.x) - foeSprite(def).h * u / 2 + 1;
     else if (def.move === 'blink') { f.a = 0; f.sub = 'hidden'; }
     else f.vx = -side * H * 0.2;
@@ -3513,7 +3536,18 @@
   }
 
   // ================================================================ camera
+  // Zoom out as the ship climbs so there is room to see what is coming; back to 1:1 near the ground.
+  // The idle loop always plays at 1:1.
+  function updateZoom(dt) {
+    const playing = rocket.mode === 'manual' || rocket.mode === 'drag' || rocket.mode === 'return';
+    let target = 1;
+    if (cfg.zoomCamera && CEIL && playing) { const t = altFrac(); target = 1 - 0.45 * t * t * (3 - 2 * t); }
+    zoom += (target - zoom) * Math.min(1, dt * 1.8);
+    if (Math.abs(zoom - 1) < 0.002 && target === 1) zoom = 1;
+  }
+
   function updateCamera(dt) {
+    updateZoom(dt);
     if (cfg.worldSize <= 1) { cam.x = 0; cam.y = 0; return; }
     const m = rocket.mode;
     if (m === 'dead' || m === 'taken') return;
@@ -3543,7 +3577,7 @@
     mouse.msx = e.clientX * DPR / PS;
     mouse.msy = e.clientY * DPR / PS;
     mouse.has = true;
-    if (WW) { mouse.wx = wrapX(mouse.msx + cam.x); mouse.wy = mouse.msy + cam.y; }
+    if (WW) { mouse.wx = wrapX(cam.x + W / 2 + (mouse.msx - W / 2) / zoom); mouse.wy = cam.y + H + (mouse.msy - H) / zoom; }
   }
 
   // The wallpaper keeps plain mouse events (that's what Lively forwards); the game
@@ -3689,7 +3723,7 @@
     const k = Math.min(1, dt * 2);
     mouse.sx += ((cfg.mouseParallax ? mouse.x : 0) - mouse.sx) * k;
     mouse.sy += ((cfg.mouseParallax ? mouse.y : 0) - mouse.sy) * k;
-    if (mouse.has) { mouse.wx = wrapX(mouse.msx + cam.x); mouse.wy = mouse.msy + cam.y; }
+    if (mouse.has) { mouse.wx = wrapX(cam.x + W / 2 + (mouse.msx - W / 2) / zoom); mouse.wy = cam.y + H + (mouse.msy - H) / zoom; }
     if (needsShip) buildShip();
 
     const looping = cfg.flightMode === 0;
@@ -3769,16 +3803,21 @@
     if (cfg.showEarth) drawEarth();
 
     // far ridge
+    // (the far ridge takes half the zoom, the world layer all of it; both scale about the bottom-centre)
+    const zoomAbout = z => { ctx.translate(W / 2, H); ctx.scale(z, z); ctx.translate(-W / 2, -H); };
     const roff = Math.round(mod(rcx * 0.5, RW)), ry = Math.round(-rcy * 0.5);
-    ctx.drawImage(ridgeCanvas, -roff, ry);
-    if (RW - roff < W) ctx.drawImage(ridgeCanvas, RW - roff, ry);
+    ctx.save();
+    if (zoom !== 1) zoomAbout(1 + (zoom - 1) * 0.5);
+    for (const o of zoom !== 1 ? [-RW, 0, RW] : [0, RW]) if (o - roff < W * 1.5 && o - roff + RW > -W * 0.5) ctx.drawImage(ridgeCanvas, o - roff, ry);
+    ctx.restore();
 
+    ctx.save();                         // ---- world layer (zoomed)
+    if (zoom !== 1) zoomAbout(zoom);
     drawShooting();
 
     // near surface
     const foff = mod(rcx, WW), fy = -rcy;
-    ctx.drawImage(fgCanvas, -foff, fy);
-    if (WW - foff < W) ctx.drawImage(fgCanvas, WW - foff, fy);
+    for (const o of zoom !== 1 ? [-WW, 0, WW] : [0, WW]) if (o - foff < W * 1.6 && o - foff + WW > -W * 0.6) ctx.drawImage(fgCanvas, o - foff, fy);
 
     drawGroundGlow();
     drawParticles(false);
@@ -3807,6 +3846,7 @@
     drawFloaters();
     drawCows();
     drawMissile();
+    ctx.restore();                      // ---- end of world layer
     ctx.restore();
 
     if (flash > 0.01) {
@@ -3877,7 +3917,7 @@
     if (needsRebuild) build();
     particles.length = 0; shooting.length = 0; asteroids.length = 0; bullets.length = 0;
     ufo = null; missile = null; cows.length = 0; plasma.length = 0; toasts.length = 0; sputniks.length = 0; foes.length = 0; boss = null; bossMeter = 0; bossDelay = 0;
-    rocket.mode = 'auto'; hudAlpha = 0; turboT = 0; menuOpen = false; floaters.length = 0;
+    rocket.mode = 'auto'; hudAlpha = 0; turboT = 0; zoom = 1; menuOpen = false; floaters.length = 0;
     earth.state = 'ok';
     cam.x = 0; cam.y = 0;
     loopClock = 0; vOff = 0;
@@ -3888,7 +3928,7 @@
   window.__moonLanderDebug = {
     state: () => ({
       mode: rocket.mode, state: rocket.state, x: rocket.x, y: rocket.y, vx: rocket.vx, vy: rocket.vy, angle: rocket.angle, w: rocket.w,
-      grounded: rocket.grounded, cam: { ...cam }, PS, DPR, W, H, WW, CEIL, score: { ...score },
+      grounded: rocket.grounded, cam: { ...cam }, zoom, alt: altFrac(), PS, DPR, W, H, WW, CEIL, score: { ...score },
       asteroids: asteroids.map(a => ({ x: a.x, y: a.y, r: a.r })), ufo: ufo ? { x: ufo.x, y: ufo.y, state: ufo.state, hp: ufo.hp } : null,
       earth: earth.state, earthX: earth.x, earthY: earthScreenY(), earthR: earth.R, shooting: shooting.length,
       toasts: toasts.map(t => t.text), turbo: turboT

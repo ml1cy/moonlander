@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0 — 2026-11-12
+
+- **Altitude zoom** — the camera pulls back as you climb (down to 55 % at the top of the sky) and closes in again as you descend; the idle loop always plays at 1:1. New "Zoom out at altitude" setting. The sky is now 2.5 screens tall instead of 1.5.
+- **More enemies** — waves arrive about twice as often and are bigger. The higher you fly, the faster they come, the more ships per wave, and new waves can arrive before the last one is cleared.
+- **Sky Raiders** — a new fighter squadron that joins in at altitude on every world (and replaces ground walkers up there, since they can't reach you).
+
 ## 1.4.0 — 2026-11-12
 
 - **Boss fights** — every world has a boss: Sputnik Prime (Moon), Helios (Mercury), The Cloud Queen (Venus), Defence Station (Earth), The Tripod King (Mars), The Magma King (Io), The Kraken (Titan), The Ice Queen (Miranda), The Trident (Triton) and The Ninth Planet (Pluto). Eight kills on a world fill the boss meter in the HUD; the boss then arrives with a health bar, cycles through its attacks (bursts, rings, rain, lobbed volleys, charges, minions, mines) and speeds up below half health. Beaten bosses are saved and marked in the Worlds tab; beating all ten pays a bonus. New "Boss fights" setting, and a Summon Boss cheat.

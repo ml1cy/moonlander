@@ -58,7 +58,8 @@ Always finish a change with `npm run validate` and `npm test`.
    `npm run validate` fails if a control has no valid type or no listener case.
 2. **The idle animation must loop seamlessly** (wallpaper mode). Anything visible while nobody is playing must be driven by the loop clock and repeat exactly once per period. See "Loop determinism" in docs/ARCHITECTURE.md before touching `updateLoop`, Earth, stars or anything spawned during idle.
 3. **New enemies/events only appear while the player is flying** (`rocket.mode === 'manual' | 'drag'`), and must retreat/stop when autopilot takes over, so the idle loop is untouched.
-4. **Never assume coordinates don't wrap.** The world is `WW` px wide and wraps. Use `wd(dx)` for distances, `wrapX(x)` to store positions, `sxOf(x)/syOf(y)` to draw, `groundY(x)` for terrain.
+4. **Never assume the screen is `W × H` of world.** The camera zooms out with altitude (`zoom` < 1). Use `viewL()/viewR()/viewT()/viewH()` for the visible world rectangle (spawning at the edges, despawning) and `offView(x, y, margin)` for draw culling; convert mouse positions the way `trackMouse` does.
+4b. **Never assume coordinates don't wrap.** The world is `WW` px wide and wraps. Use `wd(dx)` for distances, `wrapX(x)` to store positions, `sxOf(x)/syOf(y)` to draw, `groundY(x)` for terrain.
 5. **Keep both shells thin.** Game logic goes in the engine; the shells only host it. The game shell talks to the engine only through `window.MoonLander` and `window.livelyPropertyListener`.
 6. **No build tooling, no dependencies at runtime.** Plain ES2020 in the browser; Node built-ins only in scripts.
 
