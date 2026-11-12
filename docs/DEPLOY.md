@@ -45,4 +45,4 @@ Attach the zip to a GitHub Release, or drag it straight into Lively. Remind user
 
 ## Versioning
 
-Bump `version` in `package.json` and add a `CHANGELOG.md` entry. The build stamps the version into the engine (`MoonLander.version`, shown at the bottom of the game's settings drawer).
+Bump `version` in `package.json` and add a `CHANGELOG.md` entry with every change. The build stamps the version into the engine (`MoonLander.version`, shown at the bottom of the game's settings drawer and on the title screen), into the page title ("Moon Lander V1.2.3") and into the `?v=` on the website's script and stylesheet URLs, which is what stops browsers running a cached older engine after a release.

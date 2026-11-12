@@ -3,6 +3,17 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
 
+# The page itself is always re-checked; scripts and styles are requested as file?v=<version>,
+# so a new release is picked up straight away.
+/
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+/*.css
+  Cache-Control: public, max-age=3600, must-revalidate
+
 /*.js
   Cache-Control: public, max-age=3600, must-revalidate
 

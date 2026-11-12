@@ -34,6 +34,17 @@ function copyDir(from, to) {
   }
 }
 
+// Stamp the version into a built page: the tab title becomes "Moon Lander V1.2.3", and (for the
+// website) every local script/stylesheet URL gets ?v=1.2.3 so browsers can't keep serving an old
+// engine.js from their cache after a new release.
+function stampPage(file, bustCache) {
+  let html = readFileSync(file, 'utf8');
+  html = html.replace('<title>Moon Lander</title>', `<title>Moon Lander V${pkg.version}</title>`);
+  if (bustCache) html = html.replace(/(src|href)="((?:rocket-data|engine|shell)\.js|style\.css)"/g, `$1="$2?v=${pkg.version}"`);
+  if (!html.includes(`Moon Lander V${pkg.version}`)) throw new Error('could not stamp the version into ' + file);
+  writeFileSync(file, html);
+}
+
 function buildWeb() {
   const out = join(root, 'dist/web');
   rmSync(out, { recursive: true, force: true });
@@ -43,6 +54,7 @@ function buildWeb() {
   // one settings schema for both targets
   copyFileSync(join(root, 'wallpaper/LivelyProperties.json'), join(out, 'settings.json'));
   copyFileSync(join(root, 'wallpaper/thumbnail.jpg'), join(out, 'og.jpg'));
+  stampPage(join(out, 'index.html'), true);
   console.log('built dist/web');
 }
 
@@ -52,6 +64,7 @@ function buildWallpaper() {
   copyDir(join(root, 'wallpaper'), out);
   writeFileSync(join(out, 'engine.js'), engine);
   writeFileSync(join(out, 'rocket-data.js'), sprite);
+  stampPage(join(out, 'index.html'), false);
   // Lively wants LivelyInfo.json at the root of the zip
   const files = readdirSync(out).sort().map(name => ({ name, data: readFileSync(join(out, name)) }));
   const zipPath = join(root, 'dist/moon-lander-wallpaper.zip');

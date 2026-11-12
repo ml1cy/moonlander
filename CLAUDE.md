@@ -34,7 +34,7 @@ tests/smoke.mjs       Playwright smoke test of both builds
 docs/                 ARCHITECTURE, LIVELY, DEPLOY, TESTING
 ```
 
-`dist/` is generated — never edit it. The version shown in-game comes from `package.json` (the build replaces `'__VERSION__'` in the engine).
+`dist/` is generated — never edit it. The version comes from `package.json`: the build replaces `'__VERSION__'` in the engine, stamps the page title ("Moon Lander V1.2.3") and adds `?v=<version>` to the website's script and stylesheet URLs so browsers can't serve a stale engine. **Bump the version (and add a CHANGELOG entry) with every change** — it is how the owner checks that a new build is live.
 
 ## Commands
 

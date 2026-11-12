@@ -26,7 +26,10 @@
 
   const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
   if (isTouch) document.body.classList.add('touch');
-  $('version').textContent = 'Moon Lander v' + (ML.version || 'dev');
+  const VERSION = ML.version || 'dev';
+  $('version').textContent = 'Moon Lander V' + VERSION;
+  $('titleVersion').textContent = 'V' + VERSION;
+  document.title = 'Moon Lander V' + VERSION;      // the build also stamps this into the page itself
 
   // ---------------------------------------------------------------- settings
   let schema = {};
@@ -131,7 +134,7 @@
     }
   }
 
-  fetch('settings.json')
+  fetch('settings.json?v=' + encodeURIComponent(VERSION))
     .then(r => r.json())
     .then(json => { schema = json; applyAll(); buildSettingsUI(); })
     .catch(() => { /* engine defaults still work */ });

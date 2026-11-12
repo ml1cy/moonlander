@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.7.2 — 2026-11-12
+
+- **Version in the title** — the browser tab reads "Moon Lander V1.7.2" (the build stamps the version from `package.json`), and the title screen shows it too.
+- **No more stale builds** — the website's scripts and stylesheet are now requested as `engine.js?v=<version>`, and the page itself is never cached. Before this, a browser could keep running an old `engine.js` for up to an hour after a release.
+
 ## 1.7.1 — 2026-11-12
 
 - **Worlds can only be unlocked by beating bosses.** A world opens when the boss of the world before it is beaten; credits play no part. Worlds that were bought with credits in saves from before the campaign are locked again (a boss you had already beaten still opens the next world). The leftover world prices are gone from the code.
