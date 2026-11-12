@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.1 — 2026-11-12
+
+- **Worlds can only be unlocked by beating bosses.** A world opens when the boss of the world before it is beaten; credits play no part. Worlds that were bought with credits in saves from before the campaign are locked again (a boss you had already beaten still opens the next world). The leftover world prices are gone from the code.
+
 ## 1.7.0 — 2026-11-12
 
 - **Side Thrusters upgrade** — five levels in the hangar's Upgrades tab. Each level makes the Q / E side thrusters 20 % stronger and turning 6 % quicker.

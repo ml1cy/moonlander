@@ -105,8 +105,19 @@ console.log('web game');
   await page.click('#gear');
   await page.selectOption('#set-flameStyle', '1');
   await page.click('#closeSettings');
+  // a save from before the campaign, with a world bought for credits: it must not stay unlocked
+  await page.evaluate(() => {
+    const k = 'moonLander.save.v1', sv = JSON.parse(localStorage.getItem(k));
+    sv.worlds = ['moon', 'mars']; sv.world = 'mars';
+    localStorage.setItem(k, JSON.stringify(sv));
+  });
   await page.reload(); await page.waitForTimeout(1200);
   check((await page.evaluate(() => JSON.parse(localStorage.getItem('moonLander.settings.v1')).flameStyle)) === 1, 'settings persist across reload');
+
+  {
+    const sv = await page.evaluate(() => window.__moonLanderDebug.econ());
+    check(sv.world === 'moon' && sv.worlds.length === 1, 'worlds bought with credits in an old save are locked again');
+  }
 
   // enemies + easter egg hooks don't throw
   await page.click('#play');

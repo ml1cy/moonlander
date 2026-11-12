@@ -68,27 +68,28 @@
   };
   Object.assign(cfg, HOST.defaults || {});   // per-target defaults (e.g. the game starts with autopilot off)
 
-  // Worlds you can fly on, in campaign order: beating a world's boss unlocks the next one. grav multiplies the Moon's gravity, stars the star density; body is what
+  // Worlds you can fly on, in campaign order. A world is never bought: it opens when the boss of the
+  // world before it is beaten. grav multiplies the Moon's gravity, stars the star density; body is what
   // hangs in the sky (see BODIES) at bodyScale x Earth's size. The Moon uses the colour settings.
   const WORLDS = [
-    { id: 'moon', name: 'MOON', desc: 'HOME BASE. EARTH IN THE SKY', cost: 0, grav: 1, stars: 1, body: 'earth', bodyScale: 1 },
-    { id: 'mercury', name: 'MERCURY', desc: 'SCORCHED ROCK UNDER A HUGE SUN. HEAVY', cost: 150, grav: 1.35, stars: 1, body: 'sun', bodyScale: 1.7,
+    { id: 'moon', name: 'MOON', desc: 'HOME BASE. EARTH IN THE SKY', grav: 1, stars: 1, body: 'earth', bodyScale: 1 },
+    { id: 'mercury', name: 'MERCURY', desc: 'SCORCHED ROCK UNDER A HUGE SUN. HEAVY', grav: 1.35, stars: 1, body: 'sun', bodyScale: 1.7,
       ground: '#8f8880', skyTop: '#050409', skyBottom: '#2a1a12' },
-    { id: 'venus', name: 'VENUS', desc: 'CRUSHING GRAVITY UNDER A YELLOW HAZE', cost: 250, grav: 1.6, stars: 0, body: 'sun', bodyScale: 0.9,
+    { id: 'venus', name: 'VENUS', desc: 'CRUSHING GRAVITY UNDER A YELLOW HAZE', grav: 1.6, stars: 0, body: 'sun', bodyScale: 0.9,
       ground: '#c9903a', skyTop: '#6b3a10', skyBottom: '#e0a040' },
-    { id: 'mars', name: 'MARS', desc: 'RED DUST AND A SMALL PALE SUN', cost: 200, grav: 1.35, stars: 0.5, body: 'sun', bodyScale: 0.45,
+    { id: 'mars', name: 'MARS', desc: 'RED DUST AND A SMALL PALE SUN', grav: 1.35, stars: 0.5, body: 'sun', bodyScale: 0.45,
       ground: '#b5583a', skyTop: '#2a1410', skyBottom: '#c98a62' },
-    { id: 'io', name: 'IO', desc: 'SULPHUR PLAINS BELOW GIANT JUPITER', cost: 300, grav: 1.1, stars: 1, body: 'jupiter', bodyScale: 2.2,
+    { id: 'io', name: 'IO', desc: 'SULPHUR PLAINS BELOW GIANT JUPITER', grav: 1.1, stars: 1, body: 'jupiter', bodyScale: 2.2,
       ground: '#c9b84a', skyTop: '#040408', skyBottom: '#241c10' },
-    { id: 'titan', name: 'TITAN', desc: 'ORANGE SMOG, LIGHT GRAVITY, SATURN OVERHEAD', cost: 350, grav: 0.85, stars: 0.1, body: 'saturn', bodyScale: 1.3,
+    { id: 'titan', name: 'TITAN', desc: 'ORANGE SMOG, LIGHT GRAVITY, SATURN OVERHEAD', grav: 0.85, stars: 0.1, body: 'saturn', bodyScale: 1.3,
       ground: '#a8782e', skyTop: '#3a2408', skyBottom: '#c88a30' },
-    { id: 'miranda', name: 'MIRANDA', desc: 'ALMOST NO GRAVITY. URANUS FILLS THE SKY', cost: 350, grav: 0.35, stars: 1, body: 'uranus', bodyScale: 1.8,
+    { id: 'miranda', name: 'MIRANDA', desc: 'ALMOST NO GRAVITY. URANUS FILLS THE SKY', grav: 0.35, stars: 1, body: 'uranus', bodyScale: 1.8,
       ground: '#9fb4b8', skyTop: '#02040a', skyBottom: '#10242c' },
-    { id: 'triton', name: 'TRITON', desc: 'PINK ICE UNDER BLUE NEPTUNE', cost: 400, grav: 0.6, stars: 1, body: 'neptune', bodyScale: 1.4,
+    { id: 'triton', name: 'TRITON', desc: 'PINK ICE UNDER BLUE NEPTUNE', grav: 0.6, stars: 1, body: 'neptune', bodyScale: 1.4,
       ground: '#c8b8c8', skyTop: '#020308', skyBottom: '#141a3c' },
-    { id: 'pluto', name: 'PLUTO', desc: 'THE EDGE. CHARON HANGS IN THE DARK', cost: 500, grav: 0.5, stars: 1, body: 'charon', bodyScale: 1.2,
+    { id: 'pluto', name: 'PLUTO', desc: 'THE EDGE. CHARON HANGS IN THE DARK', grav: 0.5, stars: 1, body: 'charon', bodyScale: 1.2,
       ground: '#c9a98a', skyTop: '#010103', skyBottom: '#0c0c18' },
-    { id: 'earth', name: 'EARTH', desc: 'HOME. THE HEAVIEST GRAVITY OF ALL', cost: 400, grav: 1.9, stars: 0.15, body: 'luna', bodyScale: 0.6,
+    { id: 'earth', name: 'EARTH', desc: 'HOME. THE HEAVIEST GRAVITY OF ALL', grav: 1.9, stars: 0.15, body: 'luna', bodyScale: 0.6,
       ground: '#5f9a4a', skyTop: '#1c4fa8', skyBottom: '#9fd0ff' }
   ];
   let worldDef = WORLDS[0];
@@ -3228,12 +3229,11 @@
     { id: 'gunship', name: 'GUNSHIP', desc: 'TWIN CANNONS THAT COOL MUCH FASTER', cost: 350, thrust: 1, turn: 0.9, hull: 1, cool: 1.6, shield: 0 }
   ];
   let shipDef = SHIPS[0];
-  const owned = { weapons: new Set(['laser']), ships: new Set(['classic']), worlds: new Set(['moon']), bosses: new Set(), briefed: new Set() };
+  const owned = { weapons: new Set(['laser']), ships: new Set(['classic']), worlds: new Set(['moon']), cheatWorlds: new Set(), bosses: new Set(), briefed: new Set() };
 
   function setWorld(id) {
     const wl = WORLDS.find(v => v.id === id);
     if (!wl) return;
-    owned.worlds.add(id);
     if (wl !== worldDef) {
       worldDef = wl;
       needsRebuild = true;
@@ -3296,7 +3296,7 @@
       run: () => {
         for (const w of WEAPONS) owned.weapons.add(w.id);
         for (const sh of SHIPS) owned.ships.add(sh.id);
-        for (const wl of WORLDS) owned.worlds.add(wl.id);
+        for (const wl of WORLDS) { owned.worlds.add(wl.id); owned.cheatWorlds.add(wl.id); }
       } },
     { name: 'MAX ALL UPGRADES', desc: 'EVERY UPGRADE TO ITS TOP LEVEL',
       run: () => { for (const u of UPGRADES) up[u.id] = u.max; shield.charges = maxShield(); rainbowOn = true; } },
@@ -3328,12 +3328,14 @@
       for (const id of s.ships || []) if (SHIPS.some(sh => sh.id === id)) owned.ships.add(id);
       if (owned.weapons.has(s.weapon)) weaponDef = WEAPONS.find(w => w.id === s.weapon);
       if (owned.ships.has(s.ship)) { shipDef = SHIPS.find(sh => sh.id === s.ship); needsShip = true; }
-      for (const id of s.worlds || []) if (WORLDS.some(wl => wl.id === id)) owned.worlds.add(id);
-      if (owned.worlds.has(s.world)) { worldDef = WORLDS.find(wl => wl.id === s.world); needsRebuild = true; }
       cheatsUnlocked = !!s.cheatsUnlocked;
       for (const id of s.bosses || []) if (BOSSES[id]) owned.bosses.add(id);
       for (const id of s.briefed || []) if (STORY[id]) owned.briefed.add(id);
-      for (const wl of WORLDS) { const nx = nextWorld(wl); if (nx && owned.bosses.has(wl.id)) owned.worlds.add(nx.id); }   // beaten boss = next world open
+      // Worlds open only by beating the boss of the world before (or the Unlock Everything cheat).
+      // Worlds bought with credits in saves from before the campaign are not carried over.
+      for (const wl of WORLDS) { const nx = nextWorld(wl); if (nx && owned.bosses.has(wl.id)) owned.worlds.add(nx.id); }
+      for (const id of s.cheatWorlds || []) if (WORLDS.some(wl => wl.id === id)) { owned.worlds.add(id); owned.cheatWorlds.add(id); }
+      if (owned.worlds.has(s.world)) { worldDef = WORLDS.find(wl => wl.id === s.world); needsRebuild = true; }
     } catch (e) { /* storage unavailable: start fresh */ }
     shield.charges = maxShield();
   }
@@ -3341,14 +3343,14 @@
     try { localStorage.setItem(SAVE_KEY, JSON.stringify({
         credits, up, score, rainbowOn,
         weapons: [...owned.weapons], ships: [...owned.ships], weapon: weaponDef.id, ship: shipDef.id,
-        worlds: [...owned.worlds], world: worldDef.id, cheatsUnlocked, bosses: [...owned.bosses], briefed: [...owned.briefed]
+        cheatWorlds: [...owned.cheatWorlds], world: worldDef.id, cheatsUnlocked, bosses: [...owned.bosses], briefed: [...owned.briefed]
       })); } catch (e) { /* ignore */ }
   }
   function resetProgress() {
     credits = 0;
     for (const k in up) up[k] = 0;
     for (const k in score) score[k] = 0;
-    owned.weapons = new Set(['laser']); owned.ships = new Set(['classic']); owned.worlds = new Set(['moon']); owned.bosses = new Set(); owned.briefed = new Set();
+    owned.weapons = new Set(['laser']); owned.ships = new Set(['classic']); owned.worlds = new Set(['moon']); owned.cheatWorlds = new Set(); owned.bosses = new Set(); owned.briefed = new Set();
     cut = null; pendingComplete = null;
     bossMeter = 0; bossDelay = 0; if (boss) boss.state = 'leave';
     weaponDef = WEAPONS[0]; shipDef = SHIPS[0]; needsShip = true;
