@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.0 — 2026-11-12
+
+- **Playable trips between worlds** — the separate travel animation is gone. The ship now lifts off from where it stands in the play space, climbs out of the atmosphere (the sky fades to black, the band of air thins, stars start streaking past), crosses space with the old world falling away below and the new one growing ahead, then comes down through the new world's atmosphere, glowing on the way in, and lands.
+- The ship stays upright the whole way and can be steered left and right (arrows, A / D, Q / E or the touch buttons); steering picks where it lands. Stardust on the way is worth $5 each. Enter or Space skips the trip.
+
 ## 1.7.2 — 2026-11-12
 
 - **Version in the title** — the browser tab reads "Moon Lander V1.7.2" (the build stamps the version from `package.json`), and the title screen shows it too.

@@ -172,6 +172,32 @@ console.log('web game');
   e = await econ();
   check(e.world === 'moon' && e.cut === '', 'the flight can be skipped and lands on the chosen world');
 
+  // the whole trip is flown in the play space: launch, space, entry; steerable sideways, never tilted
+  const trip = await page.evaluate(() => {
+    const d = window.__moonLanderDebug, ML = window.MoonLander, r = { phases: [], tilt: 0, frames: 0 };
+    const step = () => { window.__moonLanderStep(1 / 60); r.frames++; };
+    d.clear(); d.travel('mercury');
+    const x0 = d.state().x;
+    ML.key('right', true);
+    for (let i = 0; i < 90; i++) step();
+    ML.key('right', false);
+    r.moved = d.state().x - x0; r.launchMode = d.state().mode;
+    r.tilt = Math.abs(d.state().angle);
+    while (d.econ().transit && r.frames < 3000) {
+      const ph = d.econ().transit;
+      if (r.phases[r.phases.length - 1] !== ph) r.phases.push(ph);
+      if (ph === 'entry' && d.state().y < 0) r.tilt = Math.max(r.tilt, Math.abs(d.state().angle));
+      step();
+    }
+    const s = d.state();
+    r.world = ML.world; r.mode = s.mode; r.grounded = s.grounded; r.scene = ML.scene;
+    return r;
+  });
+  check(trip.launchMode === 'transit' && trip.moved > 20 && trip.tilt < 0.02, `the ship steers sideways during the trip without tilting (moved ${trip.moved.toFixed(0)} px)`);
+  check(trip.phases.join(' ') === 'launch space entry' && trip.world === 'mercury' && trip.mode === 'manual' && trip.grounded,
+    `the trip runs launch, space, entry and lands on the new world (${(trip.frames / 60).toFixed(1)} s)`);
+  await page.evaluate(() => { const d = window.__moonLanderDebug; d.world('moon'); window.__moonLanderStep(1 / 60); const s = d.state(); d.place(s.W * 0.5, s.H * 0.5, 0, 0, 0, 0, true); });
+
   // the cheats tab is hidden until Ctrl+Alt+Shift+G
   check(!(await econ()).tabs.includes('CHEATS'), 'cheats tab is hidden by default');
   await page.keyboard.press('Control+Alt+Shift+KeyG');
@@ -184,8 +210,9 @@ console.log('web game');
   check((await econ()).cheat.god === true, 'cheats tab toggles god mode');
   await page.screenshot({ path: join(out, 'web-cheats.png') });
   await page.keyboard.press('Digit2');
+  const before = (await econ()).credits;
   await page.keyboard.press('Digit1');
-  check((await econ()).credits === 4350 + 1000, 'cheat adds credits');
+  check((await econ()).credits === before + 1000, 'cheat adds credits');
   await page.keyboard.press('Escape');
   await page.keyboard.press('KeyR');
   check((await econ()).weapon === 'laser', 'R cycles through owned weapons');
@@ -277,6 +304,8 @@ console.log('web game');
     const fly = () => { const s = d.state(); d.place(s.W * 0.5, s.H * 0.45, 0, 0, 0, 0, true); };
     const step = n => { for (let i = 0; i < n; i++) window.__moonLanderStep(1 / 60); };
     d.cheat('god', true);
+    window.MoonLander.setProperty('aliens', false);      // a UFO abducting the ship would make the boss leave
+    d.clear();
     fly(); d.bossKills(8);
     r.warned = d.bossState().delay > 0;
     step(200);
@@ -293,11 +322,12 @@ console.log('web game');
     }
     d.world('moon'); step(2); fly();
     r.beaten = d.bossState().beaten.length;
+    window.MoonLander.setProperty('aliens', true);
     d.cheat('god', false);
     return r;
   });
   check(bossRun.warned && bossRun.arrived, 'eight kills bring the boss');
-  check(bossRun.fought === 9 && bossRun.beaten === 10, 'every world has a boss that fights and can be beaten ' + JSON.stringify(bossRun.names));
+  check(bossRun.fought === 9 && bossRun.beaten === 10, `every world has a boss that fights and can be beaten (fought ${bossRun.fought}, beaten ${bossRun.beaten}) ` + JSON.stringify(bossRun.names));
 
   // every weapon fires; holding fire overheats the gun, and it recovers
   const fired = await page.evaluate(() => {

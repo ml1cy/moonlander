@@ -131,7 +131,7 @@
       case 'aliens': cfg.aliens = !!val; break;
       case 'eggs': cfg.eggs = !!val; break;
       case 'natives': cfg.natives = !!val; if (!val) foes.length = 0; break;
-      case 'story': cfg.story = !!val; if (!val) { cut = null; pendingComplete = null; } break;
+      case 'story': cfg.story = !!val; if (!val) { cut = null; pendingComplete = null; if (transit) skipTransit(); } break;
       case 'zoomCamera': cfg.zoomCamera = !!val; break;
       case 'bosses': cfg.bosses = !!val; if (!val && boss) boss.state = 'leave'; break;
       case 'cheats': cfg.cheats = !!val; break;
@@ -1591,7 +1591,7 @@
   }
 
   function takeControl() {
-    if (!ground || rocket.mode === 'dead' || rocket.mode === 'drag' || rocket.mode === 'abducted' || rocket.mode === 'taken') return;
+    if (!ground || rocket.mode === 'dead' || rocket.mode === 'drag' || rocket.mode === 'abducted' || rocket.mode === 'taken' || rocket.mode === 'transit') return;
     if (rocket.mode !== 'manual') {
       rocket.mode = 'manual';
       const onGround = rocket.y >= restY(rocket.x) - 0.5 && Math.hypot(rocket.vx, rocket.vy) < H * 0.06;
@@ -2848,7 +2848,7 @@
   // `cut` is a modal scene drawn over the game (the game is paused while it is up):
   //   brief    - mission briefing on arriving at a world for the first time
   //   complete - mission complete, after a world's boss falls for the first time
-  //   travel   - the ship flying from one world to the next
+  // The trip between worlds is not a scene: it is flown in the play space (see `transit` below).
   const STORY = {
     moon: { brief: 'A SIGNAL IS SPREADING THROUGH THE SOLAR SYSTEM. EVERY MACHINE AND CREATURE THAT HEARS IT TURNS HOSTILE. IT STARTED HERE, ON THE MOON, WITH A SOUND FROM THE OLD DAYS: BEEP. BEEP. BEEP. FIND WHAT IS SENDING IT.',
       done: 'SPUTNIK PRIME WAS ONLY A RELAY. THE SIGNAL IS BEING PASSED ALONG FROM WORLD TO WORLD, AND THE NEXT LINK IS SUNWARD.' },
@@ -2881,29 +2881,177 @@
   }
   const startBrief = wl => startCut({ kind: 'brief', world: wl });
   const startComplete = (wl, def) => startCut({ kind: 'complete', world: wl, boss: def, next: nextWorld(wl) });
-  const startTravel = (from, to) => startCut({ kind: 'travel', world: from, next: to, dur: 5.5 });
 
-  // Fly to another world: with the story on, play the trip first.
+  // ---------------------------------------------------------------- transit (flying to another world)
+  // The trip is flown in the play space, in three phases, with the ship held upright and steerable
+  // left / right only:
+  //   launch - lifts off from where it stands and climbs out of the atmosphere (the sky fades to space)
+  //   space  - stars streak past, the old world falls away below and the new one grows ahead
+  //   entry  - comes down through the new world's atmosphere and lands
+  // rocket.mode is 'transit' throughout, so enemies leave and nothing else can take the ship.
+  let transit = null;
+  const TRANSIT_ALT = () => H * 3.2;            // height above the ground where the atmosphere ends
+  const SPACE_TIME = 4.5;
+  const worldTitle = wl => (wl.id === 'moon' ? 'THE MOON' : wl.name);
+
   function travelTo(id) {
     const to = WORLDS.find(v => v.id === id);
-    if (!to || to === worldDef) return;
-    if (cfg.story) startTravel(worldDef, to); else setWorld(id);
+    if (!to || to === worldDef || transit) return;
+    const canFly = ground && visibleRocket() && rocket.mode !== 'abducted';
+    if (!cfg.story || !canFly) { setWorld(id); if (needsRebuild) build(); if (cfg.story) takeControl(); return; }
+    transit = { phase: 'launch', t: 0, from: worldDef, to, sx: 0.5, scroll: 0, picks: [], pickT: 0.6, got: 0 };
+    Object.assign(rocket, { mode: 'transit', grounded: false, w: 0, vx: 0, vy: Math.min(rocket.vy, 0), sleepT: 0 });
+    for (const k in keys) keys[k] = false;
+    menuOpen = false;
+    plasma.length = 0;
+    kickDust(rocket.x, 30, 1);
   }
 
-  function finishTravel() {
-    const to = cut.next;
-    cut = null;
-    setWorld(to.id);
-    if (needsRebuild) build();
-    if (owned.briefed.has(to.id)) takeControl(); else startBrief(to);
+  // 0 inside the atmosphere, 1 in space
+  function spaceFade() {
+    if (!transit) return 0;
+    if (transit.phase === 'space') return 1;
+    return clamp((groundY(rocket.x) - rocket.y - H * 0.9) / (TRANSIT_ALT() - H * 1.3), 0, 1);
+  }
+
+  function arriveTransit() {
+    const T = transit;
+    setWorld(T.to.id);
+    if (needsRebuild) build();                     // build() puts the ship on the new world's pad
+    T.phase = 'entry'; T.t = 0;
+    Object.assign(rocket, { mode: 'transit', angle: 0, w: 0, vx: 0, vy: H * 0.9, thrust: 0.3, y: groundY(rocket.x) - TRANSIT_ALT() });
+    cam.x = rocket.x - W / 2; cam.y = rocket.y - H * 0.38;
+  }
+
+  function finishTransit() {
+    const pose = restPose(rocket.x), got = transit.got;
+    transit = null;
+    Object.assign(rocket, { mode: 'auto', y: pose.y, angle: pose.a, vx: 0, vy: 0, w: 0, thrust: 0, state: 'landed' });
+    kickDust(rocket.x, 30, 0.9);
+    if (got) toast('STARDUST COLLECTED: $' + got, 2.5, '#ffd75a');
+    saveGame();
+    takeControl();                                 // hands over the ship, and opens the briefing on a new world
+  }
+
+  // Enter / Space: skip the rest of the trip.
+  function skipTransit() {
+    if (!transit || transit.t < 0.3) return;
+    if (transit.phase !== 'entry') arriveTransit();
+    finishTransit();
+  }
+
+  function updateTransit(dt) {
+    const T = transit;
+    if (!T) { rocket.mode = 'auto'; return; }
+    T.t += dt;
+    const steer = (keys.right || keys.strafeR ? 1 : 0) - (keys.left || keys.strafeL ? 1 : 0);
+    rocket.w = 0;
+    T.scroll += dt * (T.phase === 'space' ? 1 : T.phase === 'entry' ? -spaceFade() : spaceFade());   // stars rush up past a descending ship
+
+    if (T.phase === 'launch') {
+      rocket.angle += -rocket.angle * Math.min(1, dt * 4);                 // stand it upright
+      rocket.vy = Math.max(-H * 1.1, rocket.vy - H * 0.5 * dt);
+      rocket.vx += (steer * H * 0.4 - rocket.vx) * Math.min(1, dt * 5);
+      rocket.x = wrapX(rocket.x + rocket.vx * dt); rocket.y += rocket.vy * dt;
+      rocket.thrust += (1 - rocket.thrust) * Math.min(1, dt * 6);
+      spawnExhaust(dt);
+      if (groundY(rocket.x) - rocket.y > TRANSIT_ALT()) { T.phase = 'space'; T.t = 0; T.sx = 0.5; particles.length = 0; }
+    } else if (T.phase === 'space') {
+      rocket.angle = 0; rocket.thrust = 1;
+      T.sx = clamp(T.sx + steer * 0.6 * dt, 0.06, 0.94);
+      // stardust to steer into on the way
+      T.pickT -= dt;
+      if (T.pickT <= 0 && T.t < SPACE_TIME - 1) { T.pickT = rand(0.25, 0.5); T.picks.push({ x: rand(0.08, 0.92) * W, y: -6 }); }
+      for (let i = T.picks.length - 1; i >= 0; i--) {
+        const pk = T.picks[i];
+        pk.y += H * 0.85 * dt;
+        if (Math.hypot(pk.x - T.sx * W, pk.y - H * 0.66) < 20 * RS) { T.picks.splice(i, 1); T.got += 5; credits += 5; }
+        else if (pk.y > H + 8) T.picks.splice(i, 1);
+      }
+      if (T.t > SPACE_TIME) arriveTransit();
+    } else {
+      const pose = restPose(rocket.x), dist = pose.y - rocket.y;
+      rocket.angle = pose.a * clamp(1 - dist / (H * 0.3), 0, 1);           // settle onto the slope at the very end
+      rocket.vy = clamp(dist * 1.3, H * 0.12, H * 0.9);
+      rocket.vx += (steer * H * 0.35 - rocket.vx) * Math.min(1, dt * 5);
+      rocket.x = wrapX(rocket.x + rocket.vx * dt); rocket.y += rocket.vy * dt;
+      rocket.thrust += (0.25 + 0.75 * clamp(1 - dist / (H * 1.4), 0, 1) - rocket.thrust) * Math.min(1, dt * 6);   // braking burn
+      spawnExhaust(dt);
+      const sf = spaceFade();
+      if (sf > 0.1 && sf < 0.9) {                                          // glowing as it hits the air
+        for (let i = 0; i < 2; i++) spawn({ kind: 'fire', front: true, x: rocket.x + rand(-12, 12) * RS, y: rocket.y + rand(18, 30) * RS,
+          vx: rand(-1, 1) * H * 0.05, vy: -rocket.vy * rand(0.3, 0.6), g: 0, drag: 0.94, life: rand(0.25, 0.6), age: 0, s0: 2, s1: 1, noGround: true });
+      }
+      if (dist < H * 0.12 && Math.random() < dt * 30) kickDust(rocket.x, 3, 0.7);
+      if (dist < 1.5) finishTransit();
+    }
+  }
+
+  // Sky effects of a trip, drawn over the sky gradient: the fade to black, the thinning band of
+  // atmosphere, and stars streaking past (downwards: the ship flies up the screen).
+  function drawTransitSky() {
+    const sf = spaceFade(), T = transit;
+    ctx.globalAlpha = sf; ctx.fillStyle = '#02030a'; ctx.fillRect(0, 0, W, H);
+    if (T.phase !== 'space' && sf > 0.02 && sf < 0.98) {
+      const band = hexToRgb(skyBotCol()), y0 = Math.round(H * (0.45 + 0.6 * sf));
+      for (let i = 0; i < 6; i++) {
+        ctx.globalAlpha = 2 * sf * (1 - sf) * (i + 1) / 6;      // strongest half-way out, gone at both ends
+        ctx.fillStyle = rgbStr(band.map(v => clamp(v * 1.6 + 40, 0, 255)));
+        ctx.fillRect(0, y0 + i * 5, W, i === 5 ? H : 5);
+      }
+    }
+    const speed = T.phase === 'space' ? 1 : sf;
+    for (let i = 0; i < 110; i++) {
+      const layer = 1 + (i % 3), x = Math.floor(hash3(i, 3, 9) * W);
+      const y = mod(hash3(i, 7, 3) * H + T.scroll * H * (0.5 + 0.55 * layer), H), len = 1 + Math.round(layer * 5 * speed);
+      ctx.globalAlpha = sf * (0.3 + 0.2 * layer); ctx.fillStyle = i % 5 ? '#ffffff' : '#cfe0ff';
+      ctx.fillRect(x, Math.round(y), 1, len);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Deep space: the old world falls away below, the new one grows ahead, the ship keeps flying.
+  function drawSpaceScene() {
+    const T = transit, p = clamp(T.t / SPACE_TIME, 0, 1), e = p * p * (3 - 2 * p);
+    const R0 = Math.max(8, Math.round(H * 0.3));
+    const disc = (wl, cx, cy, r) => ctx.drawImage(planetDisc(wl, R0), Math.round(cx - r), Math.round(cy - r), Math.round(2 * r), Math.round(2 * r));
+    const fr = lerp(H, H * 0.25, e);
+    disc(T.from, W * 0.5, H * (0.72 + 0.35 * e) + fr, fr);
+    if (p > 0.3) { const q = (p - 0.3) / 0.7, g = q * q; disc(T.to, W * 0.5, lerp(H * 0.12, -H * 0.55, g), lerp(H * 0.03, H * 1.25, g)); }
+    ctx.fillStyle = '#ffe066';
+    for (const pk of T.picks) {
+      const x = Math.round(pk.x), y = Math.round(pk.y), tw = Math.floor(time * 10 + pk.x) % 2;
+      ctx.fillRect(x - 1, y - 1, 3, 3);
+      ctx.fillRect(x - 3 + tw, y, 7 - 2 * tw, 1); ctx.fillRect(x, y - 3 + tw, 1, 7 - 2 * tw);
+    }
+    composeRocket();
+    ctx.save();
+    ctx.translate(Math.round(T.sx * W), Math.round(H * 0.66));
+    ctx.scale(RS, RS);
+    ctx.drawImage(rocketCanvas, -HALF, -HALF);
+    ctx.restore();
+    const f = Math.max(1 - T.t / 0.4, (T.t - (SPACE_TIME - 0.5)) / 0.5);   // fades at both ends hide the cuts
+    if (f > 0) { ctx.globalAlpha = clamp(f, 0, 1); ctx.fillStyle = T.t < 1 ? '#02030a' : (T.to.skyTop || cfg.skyTop); ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+  }
+
+  function drawTransitHud() {
+    const T = transit;
+    const title = T.phase === 'launch' ? 'LEAVING ' + worldTitle(T.from) : T.phase === 'space' ? 'EN ROUTE TO ' + worldTitle(T.to) : 'ARRIVING AT ' + worldTitle(T.to);
+    drawText(title, Math.round((W - textWidth(title, 2)) / 2), 30, '#ffe8a8', 2);
+    const sf = spaceFade();
+    if (T.phase !== 'space' && sf > 0.15 && sf < 0.85) {
+      const note = T.phase === 'launch' ? 'LEAVING THE ATMOSPHERE' : 'ENTERING THE ATMOSPHERE';
+      drawText(note, Math.round((W - textWidth(note)) / 2), 46, '#9fd0ff');
+    }
+    const hint = 'LEFT / RIGHT: STEER   ENTER: SKIP';
+    drawText(hint, Math.round((W - textWidth(hint)) / 2), H - 12, '#6f7aa3');
   }
 
   // Enter / Space / click: continue.  Esc: the other choice (stay on this world).
   function cutAdvance() {
     if (!cut || cut.t < 0.4) return;
     if (cut.kind === 'brief') { owned.briefed.add(cut.world.id); saveGame(); cut = null; takeControl(); }
-    else if (cut.kind === 'complete') { if (cut.next) startTravel(cut.world, cut.next); else cut = null; }
-    else finishTravel();
+    else { const to = cut.next; cut = null; if (to) travelTo(to.id); }
   }
   function cutDismiss() {
     if (!cut || cut.t < 0.4) return;
@@ -2920,9 +3068,7 @@
       pendingComplete.t -= dt;
       if (pendingComplete.t <= 0) { const pc = pendingComplete; pendingComplete = null; startComplete(pc.world, pc.boss); }
     }
-    if (!cut) return;
-    cut.t += dt;
-    if (cut.kind === 'travel' && cut.t >= cut.dur) finishTravel();
+    if (cut) cut.t += dt;
   }
 
   function wrapText(str, maxW) {
@@ -2979,7 +3125,6 @@
   function drawCut() {
     cut.btns.length = 0;
     const fade = clamp(cut.t / 0.35, 0, 1);
-    if (cut.kind === 'travel') { drawTravel(); return; }
     const w = Math.min(280, W - 8), inner = w - 20, wl = cut.world, blink = Math.floor(cut.t * 2.5) % 2 === 0 || cut.t < 0.4;
     ctx.save();
     ctx.globalAlpha = fade;
@@ -3009,43 +3154,6 @@
       }
     }
     ctx.restore();
-  }
-
-  // The trip: the old world falls behind on the left, the new one grows on the right.
-  function drawTravel() {
-    const p = clamp(cut.t / cut.dur, 0, 1), e = p * p * (3 - 2 * p), from = cut.world, to = cut.next;
-    ctx.fillStyle = '#02030a'; ctx.fillRect(0, 0, W, H);
-    for (let i = 0; i < 90; i++) {                 // streaking stars
-      const layer = 1 + (i % 3), y = Math.floor(hash3(i, 7, 3) * H);
-      const x = mod(hash3(i, 3, 9) * W - cut.t * W * 0.25 * layer, W), len = 1 + Math.round(layer * 2 * Math.sin(p * Math.PI));
-      ctx.globalAlpha = 0.35 + 0.2 * layer; ctx.fillStyle = i % 5 ? '#ffffff' : '#cfe0ff';
-      ctx.fillRect(Math.round(x), y, len, 1);
-    }
-    ctx.globalAlpha = 1;
-    const R0 = Math.max(8, Math.round(H * 0.3));
-    const disc = (wl, cx, cy, r) => { const cv = planetDisc(wl, R0); ctx.drawImage(cv, Math.round(cx - r), Math.round(cy - r), Math.round(2 * r), Math.round(2 * r)); };
-    disc(from, lerp(W * 0.2, -W * 0.25, e), H * 0.62, lerp(H * 0.36, H * 0.16, e));
-    disc(to, lerp(W * 1.25, W * 0.8, e), H * 0.6, lerp(H * 0.08, H * 0.36, e));
-
-    // the ship, nose first, on a shallow arc
-    const sx = lerp(W * 0.26, W * 0.7, e), sy = H * 0.42 - Math.sin(e * Math.PI) * H * 0.12;
-    const ang = Math.PI / 2 - Math.cos(e * Math.PI) * 0.35, th = rocket.thrust;
-    rocket.thrust = p < 0.88 ? 1 : 0.3;
-    composeRocket();
-    rocket.thrust = th;
-    ctx.save();
-    ctx.translate(Math.round(sx), Math.round(sy));
-    ctx.rotate(ang);
-    const sc = lerp(1.5, 0.9, e * e);
-    ctx.scale(sc, sc);
-    ctx.drawImage(rocketCanvas, -HALF, -HALF);
-    ctx.restore();
-
-    const title = p < 0.5 ? 'LEAVING ' + (from.id === 'moon' ? 'THE MOON' : from.name) : 'APPROACHING ' + (to.id === 'moon' ? 'THE MOON' : to.name);
-    drawText(title, Math.round((W - textWidth(title, 2)) / 2), 14, '#ffe8a8', 2);
-    if (cut.t > 0.4) cutButton('[ENTER] SKIP', 8, H - 12, '#6f7aa3', cutAdvance);
-    const f = Math.max(1 - cut.t / 0.4, (cut.t - (cut.dur - 0.4)) / 0.4);          // fade in and out
-    if (f > 0) { ctx.globalAlpha = clamp(f, 0, 1); ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
   }
 
   // ================================================================ easter eggs
@@ -3351,7 +3459,7 @@
     for (const k in up) up[k] = 0;
     for (const k in score) score[k] = 0;
     owned.weapons = new Set(['laser']); owned.ships = new Set(['classic']); owned.worlds = new Set(['moon']); owned.cheatWorlds = new Set(); owned.bosses = new Set(); owned.briefed = new Set();
-    cut = null; pendingComplete = null;
+    cut = null; pendingComplete = null; transit = null; if (rocket.mode === 'transit') needsRebuild = true;
     bossMeter = 0; bossDelay = 0; if (boss) boss.state = 'leave';
     weaponDef = WEAPONS[0]; shipDef = SHIPS[0]; needsShip = true;
     if (worldDef !== WORLDS[0]) { worldDef = WORLDS[0]; needsRebuild = true; }
@@ -3803,8 +3911,15 @@
 
   function updateCamera(dt) {
     updateZoom(dt);
-    if (cfg.worldSize <= 1) { cam.x = 0; cam.y = 0; return; }
     const m = rocket.mode;
+    if (m === 'transit') {
+      // follow the ship straight up out of the sky (or down into the new one); no ceiling
+      const k = Math.min(1, dt * 4);
+      cam.x += wd(rocket.x - W / 2 - cam.x) * k;
+      cam.y += (Math.min(0, rocket.y - H * (transit && transit.phase === 'entry' ? 0.38 : 0.62)) - cam.y) * k;
+      return;
+    }
+    if (cfg.worldSize <= 1) { cam.x = 0; cam.y = 0; return; }
     if (m === 'dead' || m === 'taken') return;
     const inHome = Math.abs(wd(rocket.x - W / 2)) < W * 0.45 && rocket.y > H * 0.04;
     if (m === 'auto' && inHome) {
@@ -3873,6 +3988,7 @@
     }
     noteInteract();
 
+    if (transit) return;
     if (cfg.dragRocket && hitRocket(wx, wy)) { startDrag(wx, wy); return; }
     if (ufo && ufoHit(wx, wy, 3)) { damageUfo(); return; }
     for (let i = sputniks.length - 1; i >= 0; i--) {
@@ -3938,7 +4054,8 @@
       else if (e.code === 'Escape') cutDismiss();
       return;
     }
-    if (e.code === 'Tab' || e.code === 'KeyG') { e.preventDefault(); if (!e.repeat) toggleMenu(); return; }
+    if (transit && (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space')) { e.preventDefault(); if (!e.repeat) skipTransit(); return; }
+    if (e.code === 'Tab' || e.code === 'KeyG') { e.preventDefault(); if (!e.repeat && !transit) toggleMenu(); return; }
     if (menuOpen) {
       e.preventDefault();
       if (e.code === 'Escape') toggleMenu(false);
@@ -4001,6 +4118,7 @@
     switch (rocket.mode) {
       case 'auto': if (!looping) updateAuto(dt); break;
       case 'manual': updateManual(dt); break;
+      case 'transit': updateTransit(dt); break;
       case 'drag': updateDrag(dt); break;
       case 'return':
         updateAuto(dt);
@@ -4014,7 +4132,7 @@
     }
     if (rocket.blink > 0) rocket.blink -= dt;
     if (turboT > 0) turboT -= dt;
-    if (keys.fire && cfg.keyboardControl) tryFire();
+    if (keys.fire && cfg.keyboardControl && !transit) tryFire();
 
     updateAsteroids(dt, !looping);
     updateBullets(dt);
@@ -4048,6 +4166,8 @@
     const alt = CEIL ? clamp(-viewT() / CEIL, 0, 1) : 0;
     if (alt > 0.01) { ctx.globalAlpha = alt * 0.6; ctx.fillStyle = skyTopCol(); ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
 
+    if (transit) drawTransitSky();
+
     // stars (parallax)
     const ox = -mouse.sx * 1.5, oy = -mouse.sy * 1.0;
     for (const s of stars) {
@@ -4066,6 +4186,9 @@
     }
     ctx.globalAlpha = 1;
 
+    const inSpace = transit && transit.phase === 'space';
+    if (inSpace) drawSpaceScene();
+    else {
     if (cfg.showEarth) drawEarth();
 
     // far ridge
@@ -4114,6 +4237,7 @@
     drawCows();
     drawMissile();
     ctx.restore();                      // ---- end of world layer
+    }
     ctx.restore();
 
     if (flash > 0.01) {
@@ -4123,6 +4247,7 @@
       ctx.globalAlpha = 1;
     }
     drawHud(lastDt);
+    if (transit) drawTransitHud();
     if (menuOpen) drawMenu(lastDt);
     if (cut) drawCut();
   }
@@ -4185,7 +4310,7 @@
     cancelAnimationFrame(raf); raf = 0;
     if (needsRebuild) build();
     particles.length = 0; shooting.length = 0; asteroids.length = 0; bullets.length = 0;
-    ufo = null; missile = null; cows.length = 0; plasma.length = 0; toasts.length = 0; sputniks.length = 0; foes.length = 0; boss = null; bossMeter = 0; bossDelay = 0; cut = null; pendingComplete = null;
+    ufo = null; missile = null; cows.length = 0; plasma.length = 0; toasts.length = 0; sputniks.length = 0; foes.length = 0; boss = null; bossMeter = 0; bossDelay = 0; cut = null; pendingComplete = null; transit = null;
     rocket.mode = 'auto'; hudAlpha = 0; turboT = 0; zoom = 1; menuOpen = false; floaters.length = 0;
     earth.state = 'ok';
     cam.x = 0; cam.y = 0;
@@ -4214,9 +4339,9 @@
     credits: n => { credits = n; saveGame(); },
     econ: () => ({ credits, up: { ...up }, shield: { ...shield }, menuOpen, menuTab, autopilot: cfg.autopilot,
       weapon: weaponDef.id, ship: shipDef.id, weapons: [...owned.weapons], ships: [...owned.ships],
-      world: worldDef.id, worlds: [...owned.worlds], cheatsUnlocked, tabs: menuTabs(), cut: cut ? cut.kind : '', briefed: [...owned.briefed],
+      world: worldDef.id, worlds: [...owned.worlds], cheatsUnlocked, tabs: menuTabs(), cut: cut ? cut.kind : transit ? 'travel' : '', transit: transit ? transit.phase : '', briefed: [...owned.briefed],
       heat, overheated, bullets: bullets.length, cheat: { ...cheat } }),
-    weapon: id => setWeapon(id), ship: id => setShip(id), world: id => setWorld(id), fire: () => tryFire(),
+    weapon: id => setWeapon(id), ship: id => setShip(id), world: id => setWorld(id), travel: id => travelTo(id), fire: () => tryFire(),
     cheat: (flag, on) => { if (flag in cheat) cheat[flag] = !!on; },
     place: (x, y, a, vx = 0, vy = 0, w = 0, noIdle = false) => {
       Object.assign(rocket, { mode: 'manual', x, y, angle: a, vx, vy, w, grounded: false, keysUsed: true, airT: 2, sleepT: 0,
@@ -4243,7 +4368,7 @@
     pause: p => setPaused(!!p),
     get paused() { return paused; },
     get menuOpen() { return menuOpen || !!cut; },      // a mission screen counts: Esc belongs to it, not to pause
-    get scene() { return cut ? cut.kind : ''; },
+    get scene() { return cut ? cut.kind : transit ? 'travel' : ''; },
     get credits() { return credits; },
     get weapon() { return weaponDef.id; },
     get ship() { return shipDef.id; },
