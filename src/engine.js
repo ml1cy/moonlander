@@ -3966,7 +3966,7 @@
     }),
     asteroid: (x, y, size) => spawnAsteroid({ x, y, vx: 0, vy: 0, size, spin: 0.5 }),
     foes: (type, n) => spawnFoes(type, n), foeList: () => foes.map(f => ({ type: f.type, x: f.x, y: f.y, hp: f.hp, state: f.state, sub: f.sub })),
-    foeTypes: () => Object.keys(FOE_TYPES), boss: () => spawnBoss(), bossKills: n => bossProgress(n),
+    clear: () => clearEnemies(), foeTypes: () => Object.keys(FOE_TYPES), boss: () => spawnBoss(), bossKills: n => bossProgress(n),
     killBoss: () => { while (boss && foes.includes(boss)) damageFoe(foes.indexOf(boss)); },
     bossState: () => ({ active: !!boss, name: boss ? boss.def.name : '', hp: boss ? boss.hp : 0, max: boss ? boss.def.hp : 0, meter: bossMeter, at: BOSS_AT,
       delay: bossDelay, beaten: [...owned.bosses] }), hitFoe: () => { if (foes.length) damageFoe(foes.length - 1); },

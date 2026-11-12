@@ -209,6 +209,8 @@ console.log('web game');
   // Q / E side thrusters push the ship sideways without turning it
   const strafe = await page.evaluate(() => {
     const d = window.__moonLanderDebug, ML = window.MoonLander, r = {};
+    const quiet = on => { for (const k of ['asteroids', 'aliens', 'sputniks', 'natives']) ML.setProperty(k, !on); };
+    quiet(true); d.clear();                       // nothing around to knock or grab the ship
     for (const [key, name] of [['strafeR', 'e'], ['strafeL', 'q']]) {
       const s = d.state();
       d.place(s.W * 0.5, s.H * 0.3, 0, 0, 0, 0, true);
@@ -217,6 +219,7 @@ console.log('web game');
       ML.key(key, false);
       r[name] = d.state().vx; r[name + 'Angle'] = d.state().angle;
     }
+    quiet(false);
     return r;
   });
   check(strafe.e > 5 && strafe.q < -5 && strafe.eAngle === 0 && strafe.qAngle === 0, `Q / E strafe left and right (vx ${strafe.q.toFixed(1)} / ${strafe.e.toFixed(1)})`);
