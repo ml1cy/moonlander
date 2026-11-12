@@ -237,6 +237,12 @@
     "text": "Zoom out at altitude",
     "help": "The camera pulls back smoothly as you climb, keeping the ground in view, until the whole arena fits on screen. It closes in again as you come down to land."
   },
+  "story": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Story and mission screens",
+    "help": "Mission briefings, the mission complete screen after a boss, and the flight to the next world. Turn off to travel instantly with no screens."
+  },
   "bosses": {
     "type": "checkbox",
     "value": true,

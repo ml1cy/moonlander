@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.0 — 2026-11-12
+
+- **Campaign** — worlds are now unlocked by beating bosses instead of being bought. The route is Moon → Mercury → Venus → Mars → Io → Titan → Miranda → Triton → Pluto → Earth. Unlocked worlds can be revisited from the Worlds tab; locked ones say which boss to beat.
+- **Mission screens** — a briefing the first time you fly on a world (story, target), and MISSION COMPLETE after its boss falls (reward, worlds cleared, what happens next), with a choice to fly on or stay.
+- **Travel animation** — the ship flies from the old world to the new one; Enter, Space or a tap skips it.
+- **Story** — a signal is turning every machine and creature hostile, relayed from world to world; follow it home.
+- **Touch** — on-screen buttons for the Q / E side thrusters.
+- New "Story and mission screens" setting (off = instant travel, no screens).
+
 ## 1.5.2 — 2026-11-12
 
 - **Sharper zoom** — the canvas now gains pixel density as the camera zooms out (2× below full size, 3× when the whole arena is in view, up to the screen's own resolution). A zoomed-out ship or enemy keeps every pixel of its sprite instead of being squashed into a third of them. Near the ground it is the usual chunky 1× canvas.

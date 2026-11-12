@@ -54,6 +54,7 @@
     sputniks: true,
     natives: true,
     bosses: true,
+    story: true,
     zoomCamera: true,
     eggs: true,
     cheats: true,
@@ -67,7 +68,7 @@
   };
   Object.assign(cfg, HOST.defaults || {});   // per-target defaults (e.g. the game starts with autopilot off)
 
-  // Worlds you can fly on. grav multiplies the Moon's gravity, stars the star density; body is what
+  // Worlds you can fly on, in campaign order: beating a world's boss unlocks the next one. grav multiplies the Moon's gravity, stars the star density; body is what
   // hangs in the sky (see BODIES) at bodyScale x Earth's size. The Moon uses the colour settings.
   const WORLDS = [
     { id: 'moon', name: 'MOON', desc: 'HOME BASE. EARTH IN THE SKY', cost: 0, grav: 1, stars: 1, body: 'earth', bodyScale: 1 },
@@ -75,8 +76,6 @@
       ground: '#8f8880', skyTop: '#050409', skyBottom: '#2a1a12' },
     { id: 'venus', name: 'VENUS', desc: 'CRUSHING GRAVITY UNDER A YELLOW HAZE', cost: 250, grav: 1.6, stars: 0, body: 'sun', bodyScale: 0.9,
       ground: '#c9903a', skyTop: '#6b3a10', skyBottom: '#e0a040' },
-    { id: 'earth', name: 'EARTH', desc: 'HOME. THE HEAVIEST GRAVITY OF ALL', cost: 400, grav: 1.9, stars: 0.15, body: 'luna', bodyScale: 0.6,
-      ground: '#5f9a4a', skyTop: '#1c4fa8', skyBottom: '#9fd0ff' },
     { id: 'mars', name: 'MARS', desc: 'RED DUST AND A SMALL PALE SUN', cost: 200, grav: 1.35, stars: 0.5, body: 'sun', bodyScale: 0.45,
       ground: '#b5583a', skyTop: '#2a1410', skyBottom: '#c98a62' },
     { id: 'io', name: 'IO', desc: 'SULPHUR PLAINS BELOW GIANT JUPITER', cost: 300, grav: 1.1, stars: 1, body: 'jupiter', bodyScale: 2.2,
@@ -88,7 +87,9 @@
     { id: 'triton', name: 'TRITON', desc: 'PINK ICE UNDER BLUE NEPTUNE', cost: 400, grav: 0.6, stars: 1, body: 'neptune', bodyScale: 1.4,
       ground: '#c8b8c8', skyTop: '#020308', skyBottom: '#141a3c' },
     { id: 'pluto', name: 'PLUTO', desc: 'THE EDGE. CHARON HANGS IN THE DARK', cost: 500, grav: 0.5, stars: 1, body: 'charon', bodyScale: 1.2,
-      ground: '#c9a98a', skyTop: '#010103', skyBottom: '#0c0c18' }
+      ground: '#c9a98a', skyTop: '#010103', skyBottom: '#0c0c18' },
+    { id: 'earth', name: 'EARTH', desc: 'HOME. THE HEAVIEST GRAVITY OF ALL', cost: 400, grav: 1.9, stars: 0.15, body: 'luna', bodyScale: 0.6,
+      ground: '#5f9a4a', skyTop: '#1c4fa8', skyBottom: '#9fd0ff' }
   ];
   let worldDef = WORLDS[0];
   const groundCol = () => worldDef.ground || cfg.groundColor;
@@ -129,6 +130,7 @@
       case 'aliens': cfg.aliens = !!val; break;
       case 'eggs': cfg.eggs = !!val; break;
       case 'natives': cfg.natives = !!val; if (!val) foes.length = 0; break;
+      case 'story': cfg.story = !!val; if (!val) { cut = null; pendingComplete = null; } break;
       case 'zoomCamera': cfg.zoomCamera = !!val; break;
       case 'bosses': cfg.bosses = !!val; if (!val && boss) boss.state = 'leave'; break;
       case 'cheats': cfg.cheats = !!val; break;
@@ -1600,6 +1602,7 @@
     rocket.keysUsed = true;
     lastKeyTime = time;
     noteInteract();
+    if (cfg.story && !cut && !capturing && !owned.briefed.has(worldDef.id)) startBrief(worldDef);
   }
 
   function startReturn() {
@@ -2818,7 +2821,10 @@
     earn(def.reward, f.x, f.y);
     const first = !owned.bosses.has(worldDef.id);
     owned.bosses.add(worldDef.id);
+    const next = nextWorld(worldDef);
+    if (next) owned.worlds.add(next.id);
     toast(def.name + ' DEFEATED', 3.5, '#9dff7a');
+    if (first && cfg.story) pendingComplete = { t: 2.4, world: worldDef, boss: def };
     if (first && owned.bosses.size === WORLDS.length) {
       toast('THE SOLAR SYSTEM IS YOURS', 5, '#ffd75a');
       earn(1000, rocket.x, rocket.y - 40 * RS);
@@ -2834,6 +2840,211 @@
     ctx.fillStyle = '#3a1420'; ctx.fillRect(bx, by, bw, 4);
     ctx.fillStyle = boss.hitT > 0 ? '#ffffff' : boss.raged ? '#ff6b5b' : '#ff9a2a';
     ctx.fillRect(bx, by, Math.round(bw * clamp(boss.hp / def.hp, 0, 1)), 4);
+  }
+
+  // ================================================================ story, mission screens & travel
+  // Light story: a signal is turning the solar system hostile, relayed by one boss per world.
+  // `cut` is a modal scene drawn over the game (the game is paused while it is up):
+  //   brief    - mission briefing on arriving at a world for the first time
+  //   complete - mission complete, after a world's boss falls for the first time
+  //   travel   - the ship flying from one world to the next
+  const STORY = {
+    moon: { brief: 'A SIGNAL IS SPREADING THROUGH THE SOLAR SYSTEM. EVERY MACHINE AND CREATURE THAT HEARS IT TURNS HOSTILE. IT STARTED HERE, ON THE MOON, WITH A SOUND FROM THE OLD DAYS: BEEP. BEEP. BEEP. FIND WHAT IS SENDING IT.',
+      done: 'SPUTNIK PRIME WAS ONLY A RELAY. THE SIGNAL IS BEING PASSED ALONG FROM WORLD TO WORLD, AND THE NEXT LINK IS SUNWARD.' },
+    mercury: { brief: 'MERCURY. THE SIGNAL HAS WOKEN THE SUN SPRITES, AND SOMETHING MUCH BIGGER IS RIDING THE SOLAR WIND.',
+      done: 'HELIOS HAS BURNT OUT. THE SIGNAL BOUNCES ON, INTO THE CLOUDS OF VENUS.' },
+    venus: { brief: 'VENUS. ACID RAIN, CRUSHING GRAVITY, AND A QUEEN WHO LIKES IT THAT WAY.',
+      done: 'THE CLOUD QUEEN HAS ABDICATED. THE RELAY CHAIN LEADS OUTWARD NOW, PAST HOME, TO MARS.' },
+    mars: { brief: 'MARS. THE TRIPODS HAVE WAITED A VERY LONG TIME FOR AN EXCUSE.',
+      done: 'THE TRIPOD KING FALLS. ULLA. THE SIGNAL RUNS FOR THE OUTER SYSTEM.' },
+    io: { brief: 'IO. JUPITER FILLS THE SKY AND THE GROUND IS MOSTLY LAVA. THE CRABS LOVE IT.',
+      done: 'THE MAGMA KING COOLS. ONWARD, TO THE MOONS OF SATURN.' },
+    titan: { brief: 'TITAN. ORANGE SMOG, AND SOMETHING IN IT WITH TOO MANY ARMS.',
+      done: 'THE KRAKEN SINKS. THE SIGNAL IS FAINTER NOW, BUT STILL AHEAD OF YOU.' },
+    miranda: { brief: 'MIRANDA. BARELY ANY GRAVITY. THE ICE QUEEN HOLDS COURT UNDER URANUS.',
+      done: 'THE ICE QUEEN SHATTERS. TWO RELAYS ARE LEFT, OUT IN THE DARK.' },
+    triton: { brief: 'TRITON. PINK ICE, BLUE NEPTUNE, AND A VERY ANGRY SQUID.',
+      done: 'THE TRIDENT IS BROKEN. ONE WORLD IS LEFT OUT HERE, AND IT HOLDS A GRUDGE.' },
+    pluto: { brief: 'PLUTO. THEY SAY IT IS NOT A PLANET. DO NOT SAY THAT HERE.',
+      done: 'THE NINTH PLANET RESTS. BUT THE SIGNAL IS STILL PLAYING, AND NOW YOU KNOW THE TUNE. IT IS COMING FROM HOME.' },
+    earth: { brief: 'EARTH. THE DEFENCE STATION THAT WAS BUILT TO PROTECT IT IS THE LAST RELAY. BRING IT DOWN.',
+      done: 'THE SIGNAL STOPS. THE SOLAR SYSTEM IS QUIET AGAIN. SOMEWHERE A SMALL METAL BALL GOES BEEP, ONCE, AND IS SILENT. WELCOME HOME, PILOT.' }
+  };
+  const nextWorld = wl => WORLDS[WORLDS.indexOf(wl) + 1] || null;
+  let cut = null, pendingComplete = null;
+
+  function startCut(c) {
+    cut = Object.assign({ t: 0, btns: [] }, c);
+    for (const k in keys) keys[k] = false;
+    menuOpen = false;
+  }
+  const startBrief = wl => startCut({ kind: 'brief', world: wl });
+  const startComplete = (wl, def) => startCut({ kind: 'complete', world: wl, boss: def, next: nextWorld(wl) });
+  const startTravel = (from, to) => startCut({ kind: 'travel', world: from, next: to, dur: 5.5 });
+
+  // Fly to another world: with the story on, play the trip first.
+  function travelTo(id) {
+    const to = WORLDS.find(v => v.id === id);
+    if (!to || to === worldDef) return;
+    if (cfg.story) startTravel(worldDef, to); else setWorld(id);
+  }
+
+  function finishTravel() {
+    const to = cut.next;
+    cut = null;
+    setWorld(to.id);
+    if (needsRebuild) build();
+    if (owned.briefed.has(to.id)) takeControl(); else startBrief(to);
+  }
+
+  // Enter / Space / click: continue.  Esc: the other choice (stay on this world).
+  function cutAdvance() {
+    if (!cut || cut.t < 0.4) return;
+    if (cut.kind === 'brief') { owned.briefed.add(cut.world.id); saveGame(); cut = null; takeControl(); }
+    else if (cut.kind === 'complete') { if (cut.next) startTravel(cut.world, cut.next); else cut = null; }
+    else finishTravel();
+  }
+  function cutDismiss() {
+    if (!cut || cut.t < 0.4) return;
+    if (cut.kind === 'complete') cut = null; else cutAdvance();
+  }
+  function cutClick(sx, sy) {
+    if (!cut) return;
+    const b = cut.btns.find(r => sx >= r.x && sx <= r.x + r.w && sy >= r.y - 2 && sy <= r.y + r.h + 2);
+    if (b) b.act(); else if (cut.kind !== 'complete') cutAdvance();
+  }
+
+  function updateCut(dt) {
+    if (pendingComplete && !cut) {
+      pendingComplete.t -= dt;
+      if (pendingComplete.t <= 0) { const pc = pendingComplete; pendingComplete = null; startComplete(pc.world, pc.boss); }
+    }
+    if (!cut) return;
+    cut.t += dt;
+    if (cut.kind === 'travel' && cut.t >= cut.dur) finishTravel();
+  }
+
+  function wrapText(str, maxW) {
+    const lines = [];
+    let line = '';
+    for (const word of str.split(' ')) {
+      const tryLine = line ? line + ' ' + word : word;
+      if (textWidth(tryLine) > maxW && line) { lines.push(line); line = word; } else line = tryLine;
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  // A world seen from space: a shaded, dithered disc in the world's colours (cached per world and size).
+  const discCache = {};
+  function planetDisc(wl, R) {
+    const key = wl.id + ':' + R + ':' + (wl.ground || cfg.groundColor);
+    if (discCache[key]) return discCache[key];
+    const size = 2 * R + 2, cv = makeCanvas(size, size), g = cv.getContext('2d'), img = g.createImageData(size, size), d = img.data;
+    const base = hexToRgb(wl.ground || cfg.groundColor), seed = 11 + WORLDS.indexOf(wl) * 17;
+    for (let py = 0; py < size; py++) for (let px = 0; px < size; px++) {
+      const nx = (px + 0.5 - R - 1) / R, ny = (py + 0.5 - R - 1) / R, rr = nx * nx + ny * ny;
+      if (rr > 1) continue;
+      const nz = Math.sqrt(1 - rr), n = fbm3(nx * 2 + seed, ny * 2, nz * 2);
+      let col;
+      if (wl.id === 'earth') {
+        col = Math.abs(ny) > 0.86 ? [226, 236, 246] : n > 0.55 ? [62, 136, 66] : [30, 80, 166];
+        if (fbm3(nx * 2.4 + 50, ny * 4.2, nz * 2.4) > 0.58) col = [240, 245, 255];
+      } else if (wl.id === 'venus' || wl.id === 'titan') {
+        col = base.map(v => v * (0.82 + 0.3 * bands(ny, n, 9)));              // cloud bands
+      } else col = base.map(v => v * (n > 0.58 ? 0.62 : n > 0.48 ? 0.85 : 1.05));
+      const light = nx * -0.2 + ny * -0.55 + nz * 0.81;       // lit from above, so both worlds show in the travel scene
+      const b = Math.floor(clamp(light * 1.25 + 0.1, 0, 1) * 5 + bayer(px, py)) / 5;
+      const i = (py * size + px) * 4;
+      d[i] = lerp(6, clamp(col[0], 0, 255), b); d[i + 1] = lerp(8, clamp(col[1], 0, 255), b); d[i + 2] = lerp(22, clamp(col[2], 0, 255), b); d[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    return (discCache[key] = cv);
+  }
+
+  function drawPanel(w, h) {
+    const x = Math.round((W - w) / 2), y = Math.max(2, Math.round((H - h) / 2));
+    ctx.globalAlpha = 0.6; ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 0.95; ctx.fillStyle = '#080b17'; ctx.fillRect(x, y, w, h);
+    ctx.globalAlpha = 1; ctx.fillStyle = '#3b4a7a';
+    ctx.fillRect(x, y, w, 1); ctx.fillRect(x, y + h - 1, w, 1); ctx.fillRect(x, y, 1, h); ctx.fillRect(x + w - 1, y, 1, h);
+    return { x, y };
+  }
+  function cutButton(label, x, y, col, act) {
+    drawText(label, x, y, col);
+    cut.btns.push({ x, y, w: textWidth(label), h: 6, act });
+  }
+
+  function drawCut() {
+    cut.btns.length = 0;
+    const fade = clamp(cut.t / 0.35, 0, 1);
+    if (cut.kind === 'travel') { drawTravel(); return; }
+    const w = Math.min(280, W - 8), inner = w - 20, wl = cut.world, blink = Math.floor(cut.t * 2.5) % 2 === 0 || cut.t < 0.4;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    if (cut.kind === 'brief') {
+      const lines = wrapText(STORY[wl.id].brief, inner), h = 62 + lines.length * 8;
+      const P = drawPanel(w, h);
+      drawText('MISSION ' + (WORLDS.indexOf(wl) + 1) + ' OF ' + WORLDS.length, P.x + 10, P.y + 8, '#8a93b0');
+      drawText(wl.id === 'moon' ? 'THE MOON' : wl.name, P.x + 10, P.y + 17, '#ffe8a8', 2);
+      lines.forEach((l, i) => drawText(l, P.x + 10, P.y + 33 + i * 8, '#e8ecff'));
+      const ty = P.y + 37 + lines.length * 8;
+      drawText('TARGET: ' + BOSSES[wl.id].name, P.x + 10, ty, '#ff9a2a');
+      drawText('DESTROY ' + BOSS_AT + ' HOSTILES TO DRAW IT OUT', P.x + 10, ty + 8, '#a9b4d6');
+      if (blink) cutButton('[ENTER] START', P.x + 10, P.y + h - 11, '#9dff7a', cutAdvance);
+    } else {
+      const lines = wrapText(STORY[wl.id].done, inner), last = !cut.next, h = 70 + lines.length * 8;
+      const P = drawPanel(w, h);
+      drawText(last ? 'CAMPAIGN COMPLETE' : 'MISSION COMPLETE', P.x + 10, P.y + 8, '#9dff7a', 2);
+      drawText(cut.boss.name + ' DESTROYED', P.x + 10, P.y + 23, '#ffe8a8');
+      drawText('REWARD $' + cut.boss.reward + '   WORLDS CLEARED ' + owned.bosses.size + '/' + WORLDS.length, P.x + 10, P.y + 32, '#ffd75a');
+      lines.forEach((l, i) => drawText(l, P.x + 10, P.y + 44 + i * 8, '#e8ecff'));
+      const by = P.y + h - 11;
+      if (last) { if (blink) cutButton('[ENTER] CONTINUE', P.x + 10, by, '#9dff7a', cutAdvance); }
+      else {
+        cutButton('[ENTER] FLY TO ' + cut.next.name, P.x + 10, by, blink ? '#9dff7a' : '#5f9a55', cutAdvance);
+        const stay = '[ESC] STAY HERE';
+        cutButton(stay, P.x + w - 10 - textWidth(stay), by, '#a9b4d6', cutDismiss);
+      }
+    }
+    ctx.restore();
+  }
+
+  // The trip: the old world falls behind on the left, the new one grows on the right.
+  function drawTravel() {
+    const p = clamp(cut.t / cut.dur, 0, 1), e = p * p * (3 - 2 * p), from = cut.world, to = cut.next;
+    ctx.fillStyle = '#02030a'; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 90; i++) {                 // streaking stars
+      const layer = 1 + (i % 3), y = Math.floor(hash3(i, 7, 3) * H);
+      const x = mod(hash3(i, 3, 9) * W - cut.t * W * 0.25 * layer, W), len = 1 + Math.round(layer * 2 * Math.sin(p * Math.PI));
+      ctx.globalAlpha = 0.35 + 0.2 * layer; ctx.fillStyle = i % 5 ? '#ffffff' : '#cfe0ff';
+      ctx.fillRect(Math.round(x), y, len, 1);
+    }
+    ctx.globalAlpha = 1;
+    const R0 = Math.max(8, Math.round(H * 0.3));
+    const disc = (wl, cx, cy, r) => { const cv = planetDisc(wl, R0); ctx.drawImage(cv, Math.round(cx - r), Math.round(cy - r), Math.round(2 * r), Math.round(2 * r)); };
+    disc(from, lerp(W * 0.2, -W * 0.25, e), H * 0.62, lerp(H * 0.36, H * 0.16, e));
+    disc(to, lerp(W * 1.25, W * 0.8, e), H * 0.6, lerp(H * 0.08, H * 0.36, e));
+
+    // the ship, nose first, on a shallow arc
+    const sx = lerp(W * 0.26, W * 0.7, e), sy = H * 0.42 - Math.sin(e * Math.PI) * H * 0.12;
+    const ang = Math.PI / 2 - Math.cos(e * Math.PI) * 0.35, th = rocket.thrust;
+    rocket.thrust = p < 0.88 ? 1 : 0.3;
+    composeRocket();
+    rocket.thrust = th;
+    ctx.save();
+    ctx.translate(Math.round(sx), Math.round(sy));
+    ctx.rotate(ang);
+    const sc = lerp(1.5, 0.9, e * e);
+    ctx.scale(sc, sc);
+    ctx.drawImage(rocketCanvas, -HALF, -HALF);
+    ctx.restore();
+
+    const title = p < 0.5 ? 'LEAVING ' + (from.id === 'moon' ? 'THE MOON' : from.name) : 'APPROACHING ' + (to.id === 'moon' ? 'THE MOON' : to.name);
+    drawText(title, Math.round((W - textWidth(title, 2)) / 2), 14, '#ffe8a8', 2);
+    if (cut.t > 0.4) cutButton('[ENTER] SKIP', 8, H - 12, '#6f7aa3', cutAdvance);
+    const f = Math.max(1 - cut.t / 0.4, (cut.t - (cut.dur - 0.4)) / 0.4);          // fade in and out
+    if (f > 0) { ctx.globalAlpha = clamp(f, 0, 1); ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
   }
 
   // ================================================================ easter eggs
@@ -3016,7 +3227,7 @@
     { id: 'gunship', name: 'GUNSHIP', desc: 'TWIN CANNONS THAT COOL MUCH FASTER', cost: 350, thrust: 1, turn: 0.9, hull: 1, cool: 1.6, shield: 0 }
   ];
   let shipDef = SHIPS[0];
-  const owned = { weapons: new Set(['laser']), ships: new Set(['classic']), worlds: new Set(['moon']), bosses: new Set() };
+  const owned = { weapons: new Set(['laser']), ships: new Set(['classic']), worlds: new Set(['moon']), bosses: new Set(), briefed: new Set() };
 
   function setWorld(id) {
     const wl = WORLDS.find(v => v.id === id);
@@ -3080,7 +3291,7 @@
     { name: 'GOD MODE', desc: 'NOTHING CAN DESTROY THE SHIP', flag: 'god' },
     { name: 'NO OVERHEAT', desc: 'THE WEAPON NEVER HEATS UP', flag: 'noHeat' },
     { name: 'LOW GRAVITY', desc: 'FLOATY FLIGHT', flag: 'lowGrav' },
-    { name: 'UNLOCK EVERYTHING', desc: 'ALL WEAPONS, SHIPS AND WORLDS, FREE',
+    { name: 'UNLOCK EVERYTHING', desc: 'ALL WEAPONS, SHIPS AND WORLDS',
       run: () => {
         for (const w of WEAPONS) owned.weapons.add(w.id);
         for (const sh of SHIPS) owned.ships.add(sh.id);
@@ -3120,6 +3331,8 @@
       if (owned.worlds.has(s.world)) { worldDef = WORLDS.find(wl => wl.id === s.world); needsRebuild = true; }
       cheatsUnlocked = !!s.cheatsUnlocked;
       for (const id of s.bosses || []) if (BOSSES[id]) owned.bosses.add(id);
+      for (const id of s.briefed || []) if (STORY[id]) owned.briefed.add(id);
+      for (const wl of WORLDS) { const nx = nextWorld(wl); if (nx && owned.bosses.has(wl.id)) owned.worlds.add(nx.id); }   // beaten boss = next world open
     } catch (e) { /* storage unavailable: start fresh */ }
     shield.charges = maxShield();
   }
@@ -3127,14 +3340,15 @@
     try { localStorage.setItem(SAVE_KEY, JSON.stringify({
         credits, up, score, rainbowOn,
         weapons: [...owned.weapons], ships: [...owned.ships], weapon: weaponDef.id, ship: shipDef.id,
-        worlds: [...owned.worlds], world: worldDef.id, cheatsUnlocked, bosses: [...owned.bosses]
+        worlds: [...owned.worlds], world: worldDef.id, cheatsUnlocked, bosses: [...owned.bosses], briefed: [...owned.briefed]
       })); } catch (e) { /* ignore */ }
   }
   function resetProgress() {
     credits = 0;
     for (const k in up) up[k] = 0;
     for (const k in score) score[k] = 0;
-    owned.weapons = new Set(['laser']); owned.ships = new Set(['classic']); owned.worlds = new Set(['moon']); owned.bosses = new Set();
+    owned.weapons = new Set(['laser']); owned.ships = new Set(['classic']); owned.worlds = new Set(['moon']); owned.bosses = new Set(); owned.briefed = new Set();
+    cut = null; pendingComplete = null;
     bossMeter = 0; bossDelay = 0; if (boss) boss.state = 'leave';
     weaponDef = WEAPONS[0]; shipDef = SHIPS[0]; needsShip = true;
     if (worldDef !== WORLDS[0]) { worldDef = WORLDS[0]; needsRebuild = true; }
@@ -3225,11 +3439,11 @@
   }
 
   // A weapon or ship: buy it once, then click to equip.
-  function shopRow(item, set, current, equip, curLabel = 'EQUIPPED') {
+  function shopRow(item, set, current, equip) {
     const has = set.has(item.id), cur = item === current;
     return {
       name: item.name, desc: item.desc,
-      right: cur ? curLabel : has ? 'OWNED' : '$' + item.cost,
+      right: cur ? 'EQUIPPED' : has ? 'OWNED' : '$' + item.cost,
       col: cur ? '#9dff7a' : has ? '#a9b4d6' : credits >= item.cost ? '#ffd75a' : '#7a6a4a',
       act() {
         if (!has) {
@@ -3237,7 +3451,7 @@
           credits -= item.cost;
         }
         equip(item.id);
-        menuFlash(item.name + (curLabel === 'HERE' ? ': ARRIVED' : ' EQUIPPED'));
+        menuFlash(item.name + ' EQUIPPED');
       }
     };
   }
@@ -3267,8 +3481,19 @@
         } });
     } else if (tab === 'WEAPONS') rows = WEAPONS.map(w => shopRow(w, owned.weapons, weaponDef, setWeapon));
     else if (tab === 'SHIPS') rows = SHIPS.map(sh => shopRow(sh, owned.ships, shipDef, setShip));
-    else if (tab === 'WORLDS') rows = WORLDS.map(wl => ({ ...shopRow(wl, owned.worlds, worldDef, setWorld, 'HERE'),
-      pips: [owned.bosses.has(wl.id) ? 1 : 0, 1], desc: wl.desc + (owned.bosses.has(wl.id) ? ' - BOSS BEATEN' : '') }));
+    else if (tab === 'WORLDS') rows = WORLDS.map((wl, i) => {
+      const has = owned.worlds.has(wl.id), cur = wl === worldDef, beaten = owned.bosses.has(wl.id), prev = WORLDS[i - 1];
+      const lock = has ? '' : 'DEFEAT ' + BOSSES[prev.id].name + ' ON ' + prev.name + ' TO UNLOCK';
+      return {
+        name: wl.name, pips: [beaten ? 1 : 0, 1], desc: has ? wl.desc + (beaten ? ' - BOSS BEATEN' : '') : lock,
+        right: cur ? 'HERE' : has ? 'TRAVEL' : 'LOCKED', col: cur ? '#9dff7a' : has ? '#a9b4d6' : '#7a6a4a',
+        act() {
+          if (!has) menuFlash(lock);
+          else if (cur) menuFlash('YOU ARE HERE');
+          else { menuOpen = false; travelTo(wl.id); }
+        }
+      };
+    });
     else rows = CHEATS.map(c => ({ name: c.name, desc: c.desc, ...(c.flag ? toggle(cheat[c.flag]) : { right: '', col: '' }), act: () => runCheat(c) }));
     rows.push({ name: 'CLOSE  (TAB / ESC)', close: true, desc: '', right: '', col: '', act: () => { menuOpen = false; } });
     return rows;
@@ -3629,6 +3854,7 @@
     trackMouse(e);
     const wx = mouse.wx, wy = mouse.wy;
 
+    if (cut) { cutClick(mouse.msx, mouse.msy); return; }
     if (menuOpen) {
       const L = menuLayout();
       const inside = mouse.msx >= L.x && mouse.msx <= L.x + L.w && mouse.msy >= L.y && mouse.msy <= L.y + L.h;
@@ -3700,6 +3926,13 @@
     if (e.code === 'KeyG' && e.ctrlKey && e.altKey && e.shiftKey) {       // secret: show/hide the cheats tab
       e.preventDefault();
       if (!e.repeat) toggleCheatsUnlock();
+      return;
+    }
+    if (cut) {                                    // a mission screen or the trip is up: only continue / dismiss
+      e.preventDefault();
+      if (e.repeat) return;
+      if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') cutAdvance();
+      else if (e.code === 'Escape') cutDismiss();
       return;
     }
     if (e.code === 'Tab' || e.code === 'KeyG') { e.preventDefault(); if (!e.repeat) toggleMenu(); return; }
@@ -3888,6 +4121,7 @@
     }
     drawHud(lastDt);
     if (menuOpen) drawMenu(lastDt);
+    if (cut) drawCut();
   }
 
   function drawGroundGlow() {
@@ -3923,7 +4157,8 @@
     last = minStep ? now - (elapsed % minStep) : now;
     const dt = Math.min(0.05, elapsed / 1000);
     if (needsRebuild) build();
-    if (menuOpen) lastDt = dt; else update(dt);   // the game pauses while the menu is open
+    if (menuOpen || cut) lastDt = dt; else update(dt);   // the game pauses while the menu or a mission screen is open
+    updateCut(dt);
     render();
   }
 
@@ -3947,7 +4182,7 @@
     cancelAnimationFrame(raf); raf = 0;
     if (needsRebuild) build();
     particles.length = 0; shooting.length = 0; asteroids.length = 0; bullets.length = 0;
-    ufo = null; missile = null; cows.length = 0; plasma.length = 0; toasts.length = 0; sputniks.length = 0; foes.length = 0; boss = null; bossMeter = 0; bossDelay = 0;
+    ufo = null; missile = null; cows.length = 0; plasma.length = 0; toasts.length = 0; sputniks.length = 0; foes.length = 0; boss = null; bossMeter = 0; bossDelay = 0; cut = null; pendingComplete = null;
     rocket.mode = 'auto'; hudAlpha = 0; turboT = 0; zoom = 1; menuOpen = false; floaters.length = 0;
     earth.state = 'ok';
     cam.x = 0; cam.y = 0;
@@ -3976,7 +4211,7 @@
     credits: n => { credits = n; saveGame(); },
     econ: () => ({ credits, up: { ...up }, shield: { ...shield }, menuOpen, menuTab, autopilot: cfg.autopilot,
       weapon: weaponDef.id, ship: shipDef.id, weapons: [...owned.weapons], ships: [...owned.ships],
-      world: worldDef.id, worlds: [...owned.worlds], cheatsUnlocked, tabs: menuTabs(),
+      world: worldDef.id, worlds: [...owned.worlds], cheatsUnlocked, tabs: menuTabs(), cut: cut ? cut.kind : '', briefed: [...owned.briefed],
       heat, overheated, bullets: bullets.length, cheat: { ...cheat } }),
     weapon: id => setWeapon(id), ship: id => setShip(id), world: id => setWorld(id), fire: () => tryFire(),
     cheat: (flag, on) => { if (flag in cheat) cheat[flag] = !!on; },
@@ -4004,7 +4239,8 @@
     cycleWeapon: () => cycleWeapon(),
     pause: p => setPaused(!!p),
     get paused() { return paused; },
-    get menuOpen() { return menuOpen; },
+    get menuOpen() { return menuOpen || !!cut; },      // a mission screen counts: Esc belongs to it, not to pause
+    get scene() { return cut ? cut.kind : ''; },
     get credits() { return credits; },
     get weapon() { return weaponDef.id; },
     get ship() { return shipDef.id; },

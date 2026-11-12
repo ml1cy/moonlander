@@ -9,7 +9,7 @@ npm test             # build + Playwright smoke test of both builds (screenshots
 
 First-time setup for tests: `npm install && npx playwright install chromium`.
 
-`tests/smoke.mjs` covers: both targets boot in the right mode; every Lively property can be applied; pause hook; arrow keys take control; the game's title → play, pause/resume, hangar menu open/close and tabs, buying a weapon, a ship and a world, the hidden cheats shortcut, all ten worlds building, every enemy type spawning and dying, the reset-progress row, Q / E strafing, the altitude zoom, the boss meter and a boss fight on every world, every weapon firing, overheat and recovery, settings drawer generated + persisted; enemies/easter eggs run without errors; phone layout shows touch controls.
+`tests/smoke.mjs` covers: both targets boot in the right mode; every Lively property can be applied; pause hook; arrow keys take control; the game's title → play, pause/resume, hangar menu open/close and tabs, buying a weapon, a ship and a world, the hidden cheats shortcut, all ten worlds building, every enemy type spawning and dying, the reset-progress row, Q / E strafing, the altitude zoom, the briefing / mission complete / travel flow and locked worlds, the boss meter and a boss fight on every world, every weapon firing, overheat and recovery, settings drawer generated + persisted; enemies/easter eggs run without errors; phone layout shows touch controls.
 
 ## Deterministic stepping
 

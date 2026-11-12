@@ -79,6 +79,12 @@ console.log('web game');
   check(!(await page.isVisible('#title')), 'Play hides the title');
   check((await page.evaluate(() => window.__moonLanderDebug.state().mode)) === 'manual', 'Play hands the ship to the player');
   check((await page.evaluate(() => window.__moonLanderDebug.econ().autopilot)) === false, 'autopilot starts off in the game');
+  const scene = () => page.evaluate(() => window.MoonLander.scene);
+  check(await scene() === 'brief', 'first flight opens the mission briefing');
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: join(out, 'web-brief.png') });
+  await page.keyboard.press('Enter');
+  check(await scene() === '', 'Enter starts the mission');
 
   await page.keyboard.down('ArrowUp'); await page.waitForTimeout(900); await page.keyboard.up('ArrowUp');
   await page.screenshot({ path: join(out, 'web-flying.png') });
@@ -105,8 +111,27 @@ console.log('web game');
   // enemies + easter egg hooks don't throw
   await page.click('#play');
 
-  // hangar: tabs, buying weapons and ships, cheats
   const econ = () => page.evaluate(() => window.__moonLanderDebug.econ());
+  check(await scene() === '', 'the briefing is not repeated after a reload');
+
+  // campaign: beating the boss shows MISSION COMPLETE, then the trip, then the next world's briefing
+  await page.evaluate(() => { const d = window.__moonLanderDebug; d.clear(); d.boss(); d.killBoss(); });
+  await page.waitForTimeout(3200);
+  check(await scene() === 'complete', 'beating the boss opens the mission complete screen');
+  check((await econ()).worlds.includes('mercury'), 'beating the boss unlocks the next world');
+  await page.screenshot({ path: join(out, 'web-complete.png') });
+  await page.keyboard.press('Enter');
+  check(await scene() === 'travel', 'Enter starts the flight to the next world');
+  await page.waitForTimeout(2600);
+  await page.screenshot({ path: join(out, 'web-travel.png') });
+  await page.keyboard.press('Enter');
+  check((await econ()).world === 'mercury' && await scene() === 'brief', 'the flight ends at the next world with its briefing');
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: join(out, 'web-brief-mercury.png') });
+  await page.keyboard.press('Enter');
+  check(await scene() === '' && (await page.evaluate(() => window.__moonLanderDebug.state().mode)) === 'manual', 'and hands the ship back to the player');
+
+  // hangar: tabs, buying weapons and ships, cheats
   await page.evaluate(() => window.__moonLanderDebug.credits(5000));
   await page.keyboard.press('Tab');
   await page.keyboard.press('ArrowRight');
@@ -120,11 +145,17 @@ console.log('web game');
   check((await econ()).ship === 'gunship', 'buying a ship equips it');
   await page.screenshot({ path: join(out, 'web-ships.png') });
   await page.keyboard.press('ArrowRight');
-  await page.keyboard.press('Digit5');
+  await page.keyboard.press('Digit4');
   e = await econ();
-  check(e.world === 'mars' && !e.menuOpen, 'buying a world travels there and closes the hangar');
-  await page.waitForTimeout(300);
-  await page.screenshot({ path: join(out, 'web-mars.png') });
+  check(e.world === 'mercury' && e.menuOpen && e.cut === '', 'a locked world cannot be visited');
+  await page.screenshot({ path: join(out, 'web-worlds.png') });
+  await page.keyboard.press('Digit1');
+  e = await econ();
+  check(e.cut === 'travel' && !e.menuOpen, 'picking an unlocked world starts the flight there');
+  await page.waitForTimeout(600);
+  await page.keyboard.press('Enter');
+  e = await econ();
+  check(e.world === 'moon' && e.cut === '', 'the flight can be skipped and lands on the chosen world');
 
   // the cheats tab is hidden until Ctrl+Alt+Shift+G
   check(!(await econ()).tabs.includes('CHEATS'), 'cheats tab is hidden by default');
@@ -139,7 +170,7 @@ console.log('web game');
   await page.screenshot({ path: join(out, 'web-cheats.png') });
   await page.keyboard.press('Digit2');
   await page.keyboard.press('Digit1');
-  check((await econ()).credits === 4150 + 1000, 'cheat adds credits');
+  check((await econ()).credits === 4350 + 1000, 'cheat adds credits');
   await page.keyboard.press('Escape');
   await page.keyboard.press('KeyR');
   check((await econ()).weapon === 'laser', 'R cycles through owned weapons');
@@ -148,6 +179,7 @@ console.log('web game');
   // every world builds and runs
   const visited = await page.evaluate(() => {
     const d = window.__moonLanderDebug, seen = [];
+    window.MoonLander.setProperty('story', false);       // the rest of these checks step the engine directly
     for (const id of ['mercury', 'venus', 'earth', 'mars', 'io', 'titan', 'miranda', 'triton', 'pluto', 'moon']) {
       d.world(id);
       for (let i = 0; i < 3; i++) window.__moonLanderStep(1 / 60);

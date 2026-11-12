@@ -1,6 +1,6 @@
 # Moon Lander
 
-A pixel-art moon lander in two flavours built from one engine:
+A pixel-art moon lander in two flavours built from one engine, with a ten-world campaign across the solar system:
 
 - **Animated wallpaper** for [Lively Wallpaper](https://www.rocksdanister.com/lively/) on Windows. It loops seamlessly while you work, and turns into a game the moment you grab the controls.
 - **Browser game** you can host anywhere. This repo is set up to deploy to Cloudflare.
@@ -22,7 +22,7 @@ A pixel-art moon lander in two flavours built from one engine:
 | Esc / P | Pause (browser game) |
 | Mouse | Drag & throw the rocket; click asteroids, UFOs, Sputniks, shooting stars |
 
-Land gently on both legs for credits. Hit the ground too hard or too tilted and you'll explode or tip over. Spend credits in the hangar on upgrades (engine, gyro, landing legs, laser, shield, star magnet, rainbow exhaust), weapons (laser, scatter gun, railgun, homing missiles) and ships (Classic, Dart, Hauler, Gunship), and unlock the rest of the solar system: Mercury, Venus, Earth, Mars, Io, Titan, Miranda, Triton and Pluto each have their own gravity, colours and sky (the Sun, Jupiter, Saturn, Uranus, Neptune...). Every weapon builds heat as it fires and locks when it overheats. Watch out for UFOs, Sputnik squadrons over the Moon and Earth, drifting mines, and the natives of every other world: Sun Sprites on Mercury, Venusians, Martian tripods, Ionian lava crabs, Titans, Mirandans, Tritonians and Plutonians. The higher you climb, the further the camera pulls back and the more enemies come at you, including Sky Raider squadrons. Destroy eight enemies on a world and its boss turns up — ten in all, from Sputnik Prime over the Moon to The Ninth Planet on Pluto. There are a few secrets too.
+Land gently on both legs for credits. Hit the ground too hard or too tilted and you'll explode or tip over. Spend credits in the hangar on upgrades (engine, gyro, landing legs, laser, shield, star magnet, rainbow exhaust), weapons (laser, scatter gun, railgun, homing missiles) and ships (Classic, Dart, Hauler, Gunship). The other nine worlds each have their own gravity, colours and sky (the Sun, Jupiter, Saturn, Uranus, Neptune...) and are unlocked by beating bosses. Every weapon builds heat as it fires and locks when it overheats. Watch out for UFOs, Sputnik squadrons over the Moon and Earth, drifting mines, and the natives of every other world: Sun Sprites on Mercury, Venusians, Martian tripods, Ionian lava crabs, Titans, Mirandans, Tritonians and Plutonians. The higher you climb, the further the camera pulls back and the more enemies come at you, including Sky Raider squadrons. Destroy eight enemies on a world and its boss turns up. Beating it completes the mission and opens the next world: the campaign runs Moon → Mercury → Venus → Mars → Io → Titan → Miranda → Triton → Pluto → Earth, following a signal that is turning the solar system hostile. There are a few secrets too.
 
 ## Get it
 
