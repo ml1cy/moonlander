@@ -104,6 +104,59 @@ console.log('web game');
 
   // enemies + easter egg hooks don't throw
   await page.click('#play');
+
+  // hangar: tabs, buying weapons and ships, cheats
+  const econ = () => page.evaluate(() => window.__moonLanderDebug.econ());
+  await page.evaluate(() => window.__moonLanderDebug.credits(5000));
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('ArrowRight');
+  check((await econ()).menuTab === 1, 'arrow keys switch hangar tabs');
+  await page.keyboard.press('Digit3');
+  let e = await econ();
+  check(e.weapon === 'rail' && e.credits === 4700, 'buying a weapon equips it and costs credits');
+  await page.screenshot({ path: join(out, 'web-weapons.png') });
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Digit4');
+  check((await econ()).ship === 'gunship', 'buying a ship equips it');
+  await page.screenshot({ path: join(out, 'web-ships.png') });
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Digit2');
+  check((await econ()).cheat.god === true, 'cheats tab toggles god mode');
+  await page.screenshot({ path: join(out, 'web-cheats.png') });
+  await page.keyboard.press('Digit2');
+  await page.keyboard.press('Digit1');
+  check((await econ()).credits === 4350 + 1000, 'cheat adds credits');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('KeyQ');
+  check((await econ()).weapon === 'laser', 'Q cycles through owned weapons');
+  check(await page.evaluate(() => JSON.parse(localStorage.getItem('moonLander.save.v1')).weapons.includes('rail')), 'owned weapons are saved');
+
+  // every weapon fires; holding fire overheats the gun, and it recovers
+  const fired = await page.evaluate(() => {
+    const d = window.__moonLanderDebug, r = {};
+    d.cheat('god', true);
+    for (const id of ['laser', 'scatter', 'rail', 'missile']) {
+      d.weapon(id);
+      for (let i = 0; i < 60; i++) window.__moonLanderStep(1 / 60);   // let the gun cool and the cooldown run out
+      d.fire();
+      window.__moonLanderStep(1 / 60);
+      r[id] = d.econ().bullets;
+      for (let i = 0; i < 150; i++) window.__moonLanderStep(1 / 60);
+    }
+    d.ship('classic'); d.weapon('laser');
+    let over = -1;
+    for (let i = 0; i < 900 && over < 0; i++) { d.fire(); window.__moonLanderStep(1 / 60); if (d.econ().overheated) over = i; }
+    const before = d.econ().bullets;
+    d.fire(); window.__moonLanderStep(1 / 60);
+    r.locked = d.econ().bullets <= before;
+    for (let i = 0; i < 240; i++) window.__moonLanderStep(1 / 60);
+    r.over = over; r.recovered = !d.econ().overheated;
+    d.cheat('god', false);
+    return r;
+  });
+  check(fired.laser >= 1 && fired.scatter >= 5 && fired.rail >= 1 && fired.missile >= 1, 'all four weapons fire ' + JSON.stringify(fired));
+  check(fired.over > 60 && fired.locked, `continuous fire overheats the weapon and locks it (after ${fired.over} frames)`);
+  check(fired.recovered, 'weapon cools down and unlocks');
   await page.evaluate(() => { const d = window.__moonLanderDebug; d.sputniks(3); d.ufo(true); d.nuke(); d.cow(); });
   await page.waitForTimeout(3500);
   await page.screenshot({ path: join(out, 'web-action.png') });

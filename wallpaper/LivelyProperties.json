@@ -230,6 +230,12 @@
     "value": true,
     "text": "Easter eggs"
   },
+  "cheats": {
+    "type": "checkbox",
+    "value": true,
+    "text": "Cheats tab in the hangar menu",
+    "help": "Shows a Cheats tab in the hangar (Tab / G): free credits, god mode, no overheating, low gravity and unlocks."
+  },
   "resetProgress": {
     "text": "Reset credits, upgrades and score",
     "type": "button",

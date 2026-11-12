@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0 — 2026-11-12
+
+- **Weapon heat** — every shot heats the gun and it cools on its own; at 100 % it overheats and locks until it has cooled down. A heat gauge sits next to the weapon name in the HUD.
+- **Weapons** — Laser (free), Scatter Gun, Railgun (pierces) and homing Missiles (area blast). Buy them in the hangar, switch in flight with Q (or the WPN touch button).
+- **Ships** — Classic, Dart (fast, fragile), Hauler (tough, +1 shield, sluggish) and Gunship (twin cannons that cool faster). Each reshapes the sprite and keeps your colours.
+- **Hangar menu** — the upgrades menu now has tabs: Upgrades, Weapons, Ships, Cheats (← → or click to switch).
+- **Cheats** — add credits, god mode, no overheat, low gravity, unlock everything, max upgrades, turbo, clear enemies. New "Cheats tab" setting hides the tab.
+
 ## 1.0.0 — 2026-11-12
 
 First repository release. Split into two targets sharing one engine:

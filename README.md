@@ -14,13 +14,14 @@ A pixel-art moon lander in two flavours built from one engine:
 | ↑ / W | Main engine |
 | ← → / A D | Side thrusters (spin keeps going until you counter-steer) |
 | ↓ / S | Stop spinning |
-| Space | Fire |
-| Tab / G | Upgrades menu |
+| Space | Fire (the weapon overheats if you hold it) |
+| Q | Switch weapon |
+| Tab / G | Hangar: upgrades, weapons, ships, cheats (← → switch tabs) |
 | H | Autopilot on/off |
 | Esc / P | Pause (browser game) |
 | Mouse | Drag & throw the rocket; click asteroids, UFOs, Sputniks, shooting stars |
 
-Land gently on both legs for credits. Hit the ground too hard or too tilted and you'll explode or tip over. Spend credits on engine, gyro, landing legs, laser, shield, star magnet and rainbow exhaust upgrades. Watch out for UFOs and Sputnik squadrons. There are a few secrets too.
+Land gently on both legs for credits. Hit the ground too hard or too tilted and you'll explode or tip over. Spend credits in the hangar on upgrades (engine, gyro, landing legs, laser, shield, star magnet, rainbow exhaust), weapons (laser, scatter gun, railgun, homing missiles) and ships (Classic, Dart, Hauler, Gunship). Every weapon builds heat as it fires and locks when it overheats. The hangar also has a Cheats tab (it can be hidden in the settings). Watch out for UFOs and Sputnik squadrons. There are a few secrets too.
 
 ## Get it
 

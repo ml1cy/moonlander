@@ -20,7 +20,7 @@
   const WEB_DEFAULTS = { autopilot: false };
   const WEB_HIDE = new Set([]);
   const HELP_OVERRIDE = {
-    keyboardControl: 'Arrow keys / WASD fly, Space fires, H toggles autopilot, Tab opens upgrades.',
+    keyboardControl: 'Arrow keys / WASD fly, Space fires, Q switches weapon, H toggles autopilot, Tab opens the hangar.',
     autopilot: 'When on, autopilot flies the ship home after it has been left alone. H toggles it.'
   };
 
@@ -207,6 +207,7 @@
       if (key) ML.key(key, true);
       else if (action === 'menu') ML.toggleMenu();
       else if (action === 'autopilot') ML.toggleAutopilot();
+      else if (action === 'weapon') ML.cycleWeapon();
     };
     const up = e => {
       e.preventDefault();

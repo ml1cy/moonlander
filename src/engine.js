@@ -53,6 +53,7 @@
     aliens: true,
     sputniks: true,
     eggs: true,
+    cheats: true,
     bodyColor: '#bdc6cb',
     trimColor: '#bdc6cb',
     decalColor: '#3e67fc',
@@ -96,6 +97,7 @@
       case 'worldSize': cfg.worldSize = [1, 3, 5][Number(val)] || 3; needsRebuild = true; break;
       case 'aliens': cfg.aliens = !!val; break;
       case 'eggs': cfg.eggs = !!val; break;
+      case 'cheats': cfg.cheats = !!val; break;
       case 'sputniks': cfg.sputniks = !!val; if (!val) sputniks.length = 0; break;
       case 'bodyColor': cfg.bodyColor = val; needsShip = true; break;
       case 'trimColor': cfg.trimColor = val; needsShip = true; break;
@@ -688,6 +690,42 @@
       }
     }
     g.putImageData(out, 0, 0);
+    shapeShip(g, trim);
+  }
+
+  // Ship types reshape the recoloured sprite. The feet stay where HULL expects them
+  // (within a few px), so every ship shares the same landing physics.
+  function shapeShip(g, trim) {
+    const id = shipDef.id;
+    if (id === 'classic') return;
+    const t = makeCanvas(SPR, SPR);
+    t.getContext('2d').drawImage(shipCanvas, 0, 0);
+    g.imageSmoothingEnabled = false;
+    if (id === 'dart') {
+      // slim fuselage, fins tucked in
+      g.clearRect(0, 11, SPR, SPR - 11);
+      g.drawImage(t, 13, 42, 10, 22, 16, 42, 10, 22);
+      g.drawImage(t, 42, 42, 10, 22, 39, 42, 10, 22);
+      g.drawImage(t, 22, 11, 20, 48, 25, 11, 14, 48);
+    } else if (id === 'hauler') {
+      // fat fuselage with two dark cargo bands
+      g.drawImage(t, 22, 12, 20, 47, 19, 12, 26, 47);
+      g.globalCompositeOperation = 'source-atop';
+      g.fillStyle = 'rgba(0,0,0,0.38)';
+      g.fillRect(19, 19, 26, 2); g.fillRect(19, 43, 26, 2);
+      g.globalCompositeOperation = 'source-over';
+    } else if (id === 'gunship') {
+      // a cannon barrel strapped to each side
+      const shade = k => rgbStr(trim.map(v => clamp(v * k, 0, 255)));
+      for (const x of [19, 43]) {
+        g.fillStyle = shade(0.82); g.fillRect(x, 16, 1, 25);
+        g.fillStyle = shade(0.45); g.fillRect(x + 1, 16, 1, 25);
+        g.fillStyle = shade(1.1); g.fillRect(x, 14, 2, 2);
+        g.fillStyle = shade(0.35);
+        const strut = x < 32 ? x + 2 : x - 1;
+        g.fillRect(strut, 28, 1, 2); g.fillRect(strut, 37, 1, 2);
+      }
+    }
   }
 
   let flamePal = null;
@@ -1365,11 +1403,11 @@
   let hintT = 0, hintShown = false, hudAlpha = 0;
   let flash = 0, shake = 0;
 
-  const GRAV = () => H * 0.10;
-  const THRUST = () => H * 0.27 * (1 + 0.12 * up.engine) * (turboT > 0 ? 1.35 : 1);
+  const GRAV = () => H * 0.10 * (cheat.lowGrav ? 0.4 : 1);
+  const THRUST = () => H * 0.27 * (1 + 0.12 * up.engine) * shipDef.thrust * (turboT > 0 ? 1.35 : 1);
   // Side thrusters: gentle angular acceleration, capped spin, a little friction so taps
   // give small, controllable turns. Nothing pulls the ship back to level.
-  const ROT_ACC = () => 2.4 * cfg.steering / 100;
+  const ROT_ACC = () => 2.4 * shipDef.turn * cfg.steering / 100;
   const ROT_MAX = 2.6;
   const impacts = { foot: 0, body: 0 };
 
@@ -1497,8 +1535,8 @@
     const sp = Math.hypot(rocket.vx, rocket.vy), cap = H * 0.9;
     if (sp > cap) { rocket.vx *= cap / sp; rocket.vy *= cap / sp; }
 
-    const legs = 1 + 0.25 * up.legs;
-    if (cfg.crashes && (impacts.foot > H * 0.32 * legs || impacts.body > H * 0.17 * legs)) {
+    const legs = (1 + 0.25 * up.legs) * shipDef.hull;
+    if (cfg.crashes && !cheat.god && (impacts.foot > H * 0.32 * legs || impacts.body > H * 0.17 * legs)) {
       if (shield.graceT > 0) { rocket.vy = Math.min(rocket.vy, 0) * 0.3; rocket.vx *= 0.5; }
       else if (shieldAbsorb()) { rocket.vy = -Math.min(Math.abs(rocket.vy) * 0.3, H * 0.08); rocket.vx *= 0.3; rocket.w *= 0.3; }
       else { explodeRocket(); return; }
@@ -1621,6 +1659,7 @@
 
   // ---------------------------------------------------------------- crash & respawn
   function explodeRocket() {
+    if (cheat.god) return;
     const x = rocket.x, y = rocket.y;
     rocket.mode = 'dead';
     rocket.deadT = 0;
@@ -1652,48 +1691,145 @@
     sparkleBurst(rocket.x, rocket.y, 24, H * 0.2);
   }
 
-  // ================================================================ bullets
+  // ================================================================ weapons & bullets
+  // cd = seconds between shots, heat = heat added per shot (the weapon locks at 1.0)
+  const WEAPONS = [
+    { id: 'laser', name: 'LASER', desc: 'RELIABLE. THE LASER UPGRADE ADDS DOUBLE AND TRIPLE SHOT', cost: 0, cd: 0.16, heat: 0.08 },
+    { id: 'scatter', name: 'SCATTER GUN', desc: 'FIVE PELLETS IN A CONE. SHORT RANGE, RUNS HOT', cost: 150, cd: 0.42, heat: 0.22 },
+    { id: 'rail', name: 'RAILGUN', desc: 'PUNCHES THROUGH EVERYTHING IN LINE. SLOW, VERY HOT', cost: 300, cd: 0.7, heat: 0.4 },
+    { id: 'missile', name: 'MISSILES', desc: 'HOMING. THE BLAST HITS EVERYTHING NEARBY', cost: 400, cd: 0.55, heat: 0.3 }
+  ];
+  let weaponDef = WEAPONS[0];
   const bullets = [];
   let fireCooldown = 0;
+  // Weapon heat: every shot heats the gun and it cools on its own. At 100 % it overheats
+  // and locks until it has cooled back down to HEAT_READY.
+  const HEAT_COOL = 0.28, HEAT_READY = 0.3;
+  let heat = 0, overheated = false;
+  let muzzleSide = 1;
+
+  function muzzleWorld() {
+    if (shipDef.id !== 'gunship') return noseWorld();
+    muzzleSide = -muzzleSide;                        // alternate the two side cannons
+    const lx = 12.5 * muzzleSide, ly = -19, c = Math.cos(rocket.angle), s = Math.sin(rocket.angle);
+    return { x: rocket.x + (lx * c - ly * s) * RS, y: rocket.y + (lx * s + ly * c) * RS, dx: s, dy: -c };
+  }
 
   function tryFire() {
-    if (fireCooldown > 0 || !visibleRocket() || rocket.mode === 'abducted') return;
-    fireCooldown = turboT > 0 ? 0.1 : 0.16 * Math.pow(0.85, Math.min(up.laser, 2));
-    const n = noseWorld(), sp = H * 1.3;
-    const spread = turboT > 0 || up.laser >= 5 ? [-0.12, 0, 0.12] : up.laser >= 3 ? [-0.06, 0.06] : [0];
-    for (const off of spread) {
+    if (fireCooldown > 0 || overheated || !visibleRocket() || rocket.mode === 'abducted') return;
+    const wpn = weaponDef, turbo = turboT > 0, rb = isRainbow();
+    fireCooldown = wpn.cd * (turbo ? 0.6 : Math.pow(0.85, Math.min(up.laser, 2)));
+    if (!cheat.noHeat) {
+      heat += wpn.heat * (turbo ? 0.5 : 1);
+      if (heat >= 1) { heat = 1; overheated = true; toast('WEAPON OVERHEATED', 1.2, '#ff6b5b'); }
+    }
+    const n = muzzleWorld();
+    const shot = (off, sp, life, extra) => {
       const a = rocket.angle + off;
-      const col = isRainbow() ? rgbStr(hslRgb(time * 400 + off * 900, 1, 0.65)) : cfg.laserColor;
-      bullets.push({ x: n.x, y: n.y, vx: Math.sin(a) * sp + rocket.vx, vy: -Math.cos(a) * sp + rocket.vy, life: 1.1, col });
+      bullets.push(Object.assign({
+        x: n.x, y: n.y, vx: Math.sin(a) * sp + rocket.vx, vy: -Math.cos(a) * sp + rocket.vy, life, len: 5,
+        col: rb ? rgbStr(hslRgb(time * 400 + off * 900, 1, 0.65)) : cfg.laserColor
+      }, extra));
+    };
+    if (wpn.id === 'scatter') {
+      for (let i = 0; i < 5; i++) shot((i - 2) * 0.11 + rand(-0.04, 0.04), H * rand(0.95, 1.2), rand(0.28, 0.4), { len: 3 });
+    } else if (wpn.id === 'rail') {
+      shot(0, H * 3.2, 0.5, { len: 18, pierce: true, hit: new Set() });
+      shake = Math.max(shake, 0.12);
+    } else if (wpn.id === 'missile') {
+      shot(0, H * 0.45, 1.8, { kind: 'missile', col: rb ? rgbStr(hslRgb(time * 400, 1, 0.65)) : '#ffb36b' });
+    } else {
+      const spread = turbo || up.laser >= 5 ? [-0.12, 0, 0.12] : up.laser >= 3 ? [-0.06, 0.06] : [0];
+      for (const off of spread) shot(off, H * 1.3, 1.1);
     }
     spawn({ kind: 'spark', front: true, x: n.x, y: n.y, vx: n.dx * H * 0.1, vy: n.dy * H * 0.1,
       g: 0, drag: 0.9, life: 0.15, age: 0, s0: 2, s1: 1, hit: true });
   }
 
+  // Homing missile: turns towards the nearest target and accelerates.
+  function steerMissile(b, dt) {
+    let best = null, bd = H * 0.7;
+    const consider = (x, y) => { const d = Math.hypot(wd(x - b.x), y - b.y); if (d < bd) { bd = d; best = { x, y }; } };
+    for (const a of asteroids) consider(a.x, a.y);
+    for (const sn of sputniks) consider(sn.x, sn.y);
+    if (ufo) consider(ufo.x, ufo.y);
+    let sp = Math.hypot(b.vx, b.vy) || 1, ang = Math.atan2(b.vy, b.vx);
+    if (best) {
+      const want = Math.atan2(best.y - b.y, wd(best.x - b.x));
+      const diff = Math.atan2(Math.sin(want - ang), Math.cos(want - ang));
+      ang += clamp(diff, -5 * dt, 5 * dt);
+    }
+    sp = Math.min(H * 1.05, sp + H * 1.5 * dt);
+    b.vx = Math.cos(ang) * sp; b.vy = Math.sin(ang) * sp;
+    spawn({ kind: 'fire', x: b.x, y: b.y, vx: -b.vx * 0.15 + rand(-1, 1) * H * 0.02, vy: -b.vy * 0.15 + rand(-1, 1) * H * 0.02,
+      g: 0, drag: 0.9, life: rand(0.2, 0.45), age: 0, s0: 1, s1: 2 });
+  }
+
+  // Missile blast: damages everything within the radius.
+  function blastAt(x, y) {
+    const R = 22 * S;
+    for (let j = asteroids.length - 1; j >= 0; j--) {
+      const a = asteroids[j];
+      if (Math.hypot(wd(x - a.x), y - a.y) < R + a.r) blastAsteroid(j, wd(a.x - x) * 2, (a.y - y) * 2);
+    }
+    for (let j = sputniks.length - 1; j >= 0; j--) {
+      const sn = sputniks[j];
+      if (!sputHit(sn, x, y, R)) continue;
+      damageSputnik(j);
+      if (sputniks[j] === sn) damageSputnik(j);
+    }
+    if (ufo && ufoHit(x, y, R)) { damageUfo(); damageUfo(); }
+    for (let i = 0; i < 22; i++) {
+      const ang = Math.random() * TAU, sp = rand(0.05, 0.3) * H;
+      spawn({ kind: i % 3 ? 'fire' : 'spark', front: true, x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
+        g: 0, drag: 0.9, life: rand(0.25, 0.7), age: 0, s0: 2, s1: rand(3, 5), hit: true });
+    }
+    shake = Math.max(shake, 0.25);
+  }
+
   function updateBullets(dt) {
     fireCooldown -= dt;
+    if (heat > 0) heat = Math.max(0, heat - dt * HEAT_COOL * shipDef.cool * (overheated ? 1.5 : 1));
+    if (overheated && heat <= HEAT_READY) overheated = false;
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
       b.life -= dt;
       let dead = b.life <= 0;
-      for (let s = 0; s < 3 && !dead; s++) {
-        b.x += b.vx * dt / 3; b.y += b.vy * dt / 3;
+      const isMissile = b.kind === 'missile';
+      if (isMissile && !dead) steerMissile(b, dt);
+      const steps = b.pierce ? 6 : 3, k = b.pierce ? 0.04 : 0.12;
+      for (let s = 0; s < steps && !dead; s++) {
+        b.x += b.vx * dt / steps; b.y += b.vy * dt / steps;
+        let hit = false;
         for (let j = asteroids.length - 1; j >= 0; j--) {
           const a = asteroids[j];
-          if (Math.hypot(wd(b.x - a.x), b.y - a.y) < a.r + 1.5) { blastAsteroid(j, b.vx * 0.12, b.vy * 0.12); dead = true; break; }
+          if (Math.hypot(wd(b.x - a.x), b.y - a.y) < a.r + 1.5) {
+            if (!isMissile) blastAsteroid(j, b.vx * k, b.vy * k);
+            hit = true; break;
+          }
         }
-        if (!dead && ufo && ufoHit(b.x, b.y, 0)) { damageUfo(); dead = true; }
-        for (let j = sputniks.length - 1; j >= 0 && !dead; j--) {
-          if (sputHit(sputniks[j], b.x, b.y, 1.5)) { damageSputnik(j, b.vx * 0.1, b.vy * 0.1); dead = true; }
+        if ((!hit || b.pierce) && ufo && !(b.hit && b.hit.has(ufo)) && ufoHit(b.x, b.y, 0)) {
+          if (b.hit) b.hit.add(ufo);
+          if (!isMissile) { damageUfo(); if (b.pierce) damageUfo(); }
+          hit = true;
         }
+        for (let j = sputniks.length - 1; j >= 0 && (!hit || b.pierce); j--) {
+          const sn = sputniks[j];
+          if ((b.hit && b.hit.has(sn)) || !sputHit(sn, b.x, b.y, 1.5)) continue;
+          if (b.hit) b.hit.add(sn);
+          if (!isMissile) { damageSputnik(j, b.vx * k, b.vy * k); if (b.pierce && sputniks[j] === sn) damageSputnik(j); }
+          hit = true;
+        }
+        if (hit && !b.pierce) dead = true;
         if (!dead && b.y > groundY(b.x)) {
           dead = true;
-          for (let k = 0; k < 5; k++) spawn({ kind: 'spark', front: true, x: b.x, y: groundY(b.x) - 1,
+          for (let n = 0; n < 5; n++) spawn({ kind: 'spark', front: true, x: b.x, y: groundY(b.x) - 1,
             vx: rand(-1, 1) * H * 0.1, vy: -rand(0.05, 0.2) * H, g: H * 0.3, drag: 0.95,
             life: rand(0.2, 0.4), age: 0, s0: 1, s1: 1, hit: true });
-          kickDust(b.x, 3, 0.3);
+          kickDust(b.x, isMissile ? 12 : 3, isMissile ? 0.6 : 0.3);
         }
       }
+      if (dead && isMissile) blastAt(b.x, b.y);
       if (dead || b.y < -CEIL - 40) bullets.splice(i, 1);
     }
   }
@@ -1701,13 +1837,14 @@
   function drawBullets() {
     for (const b of bullets) {
       const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp;
-      const x = sxOf(b.x), y = syOf(b.y);
+      const x = sxOf(b.x), y = syOf(b.y), len = b.len || 5;
       ctx.fillStyle = b.col;
-      for (let i = 1; i < 5; i++) {
-        ctx.globalAlpha = 1 - i / 5;
+      for (let i = 1; i < len; i++) {
+        ctx.globalAlpha = 1 - i / len;
         ctx.fillRect(Math.round(x - ux * i), Math.round(y - uy * i), 1, 1);
       }
       ctx.globalAlpha = 1;
+      if (b.kind === 'missile') ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
     }
@@ -2271,6 +2408,68 @@
   ];
   const up = { engine: 0, gyro: 0, legs: 0, laser: 0, shield: 0, magnet: 0, rainbow: 0 };
   let credits = 0, rainbowOn = true;
+
+  // Ship types: multipliers on thrust, turning, crash tolerance and weapon cooling.
+  const SHIPS = [
+    { id: 'classic', name: 'CLASSIC', desc: 'THE ORIGINAL. BALANCED ALL-ROUNDER', cost: 0, thrust: 1, turn: 1, hull: 1, cool: 1, shield: 0 },
+    { id: 'dart', name: 'DART', desc: 'MORE THRUST, TURNS FAST. FRAGILE', cost: 200, thrust: 1.25, turn: 1.35, hull: 0.75, cool: 1, shield: 0 },
+    { id: 'hauler', name: 'HAULER', desc: 'TOUGH HULL AND +1 SHIELD. SLUGGISH', cost: 250, thrust: 0.88, turn: 0.75, hull: 1.5, cool: 1, shield: 1 },
+    { id: 'gunship', name: 'GUNSHIP', desc: 'TWIN CANNONS THAT COOL MUCH FASTER', cost: 350, thrust: 1, turn: 0.9, hull: 1, cool: 1.6, shield: 0 }
+  ];
+  let shipDef = SHIPS[0];
+  const owned = { weapons: new Set(['laser']), ships: new Set(['classic']) };
+  const maxShield = () => up.shield + shipDef.shield;
+
+  function setWeapon(id) {
+    const w = WEAPONS.find(v => v.id === id);
+    if (!w) return;
+    owned.weapons.add(id);
+    weaponDef = w;
+    saveGame();
+  }
+  function setShip(id) {
+    const sh = SHIPS.find(v => v.id === id);
+    if (!sh) return;
+    owned.ships.add(id);
+    shipDef = sh;
+    needsShip = true;
+    shield.charges = Math.min(shield.charges, maxShield());
+    saveGame();
+  }
+  function cycleWeapon() {
+    const have = WEAPONS.filter(w => owned.weapons.has(w.id));
+    noteInteract();
+    if (have.length < 2) { toast('BUY MORE WEAPONS IN THE HANGAR (TAB)', 2); return; }
+    setWeapon(have[(have.indexOf(weaponDef) + 1) % have.length].id);
+    toast(weaponDef.name, 1, '#7ff0ff');
+  }
+
+  // Cheats (not saved, except what they unlock)
+  const cheat = { god: false, noHeat: false, lowGrav: false };
+  const cheating = () => cheat.god || cheat.noHeat || cheat.lowGrav;
+  function clearEnemies() {
+    asteroids.length = 0; sputniks.length = 0; plasma.length = 0; wave = null;
+    if (ufo && rocket.mode !== 'abducted' && rocket.mode !== 'taken') ufo = null;
+  }
+  const CHEATS = [
+    { name: 'ADD $1000', desc: 'FREE MONEY', run: () => { credits += 1000; } },
+    { name: 'GOD MODE', desc: 'NOTHING CAN DESTROY THE SHIP', flag: 'god' },
+    { name: 'NO OVERHEAT', desc: 'THE WEAPON NEVER HEATS UP', flag: 'noHeat' },
+    { name: 'LOW GRAVITY', desc: 'FLOATY FLIGHT', flag: 'lowGrav' },
+    { name: 'UNLOCK ALL WEAPONS AND SHIPS', desc: 'EVERYTHING IN THE HANGAR, FREE',
+      run: () => { for (const w of WEAPONS) owned.weapons.add(w.id); for (const sh of SHIPS) owned.ships.add(sh.id); } },
+    { name: 'MAX ALL UPGRADES', desc: 'EVERY UPGRADE TO ITS TOP LEVEL',
+      run: () => { for (const u of UPGRADES) up[u.id] = u.max; shield.charges = maxShield(); rainbowOn = true; } },
+    { name: 'TURBO BOOST', desc: '30 SECONDS OF TURBO', run: () => konami() },
+    { name: 'CLEAR ENEMIES', desc: 'REMOVES ROCKS, SPUTNIKS AND UFOS', run: clearEnemies }
+  ];
+  function runCheat(c) {
+    if (c.flag) {
+      cheat[c.flag] = !cheat[c.flag];
+      if (cheat.noHeat) { heat = 0; overheated = false; }
+      menuFlash(c.name + (cheat[c.flag] ? ' ON' : ' OFF'));
+    } else { c.run(); saveGame(); menuFlash(c.name + ': DONE'); }
+  }
   const shield = { charges: 0, regenT: 0, flashT: 0, graceT: 0 };
   const floaters = [];
   const SAVE_KEY = 'moonLander.save.v1';
@@ -2284,16 +2483,26 @@
       for (const k in up) up[k] = clamp((s.up && s.up[k]) | 0, 0, 9);
       if (s.score) for (const k in score) score[k] = s.score[k] | 0;
       rainbowOn = s.rainbowOn !== false;
+      for (const id of s.weapons || []) if (WEAPONS.some(w => w.id === id)) owned.weapons.add(id);
+      for (const id of s.ships || []) if (SHIPS.some(sh => sh.id === id)) owned.ships.add(id);
+      if (owned.weapons.has(s.weapon)) weaponDef = WEAPONS.find(w => w.id === s.weapon);
+      if (owned.ships.has(s.ship)) { shipDef = SHIPS.find(sh => sh.id === s.ship); needsShip = true; }
     } catch (e) { /* storage unavailable: start fresh */ }
-    shield.charges = up.shield;
+    shield.charges = maxShield();
   }
   function saveGame() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ credits, up, score, rainbowOn })); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({
+        credits, up, score, rainbowOn,
+        weapons: [...owned.weapons], ships: [...owned.ships], weapon: weaponDef.id, ship: shipDef.id
+      })); } catch (e) { /* ignore */ }
   }
   function resetProgress() {
     credits = 0;
     for (const k in up) up[k] = 0;
     for (const k in score) score[k] = 0;
+    owned.weapons = new Set(['laser']); owned.ships = new Set(['classic']);
+    weaponDef = WEAPONS[0]; shipDef = SHIPS[0]; needsShip = true;
+    heat = 0; overheated = false;
     shield.charges = 0;
     saveGame();
     toast('PROGRESS RESET', 2);
@@ -2317,7 +2526,7 @@
   }
 
   function updateEconomy(dt) {
-    if (shield.charges < up.shield) {
+    if (shield.charges < maxShield()) {
       shield.regenT += dt;
       if (shield.regenT > 12) { shield.charges++; shield.regenT = 0; }
     }
@@ -2353,22 +2562,10 @@
     ctx.globalAlpha = 1;
   }
 
-  // ---------------------------------------------------------------- upgrades menu
-  let menuOpen = false, menuHover = -1, menuMsg = '', menuMsgT = 0;
-  const MENU_ROWS = () => UPGRADES.length + 2;     // upgrades, autopilot toggle, close
-
-  function menuLayout() {
-    const w = Math.min(260, W - 8), rowH = 11;
-    const h = 32 + MENU_ROWS() * rowH + 16;
-    return { x: Math.round((W - w) / 2), y: Math.max(2, Math.round((H - h) / 2)), w, h, rowH, top: Math.max(2, Math.round((H - h) / 2)) + 30 };
-  }
-
-  function menuRowAt(sx, sy) {
-    const L = menuLayout();
-    if (sx < L.x || sx > L.x + L.w || sy < L.top) return -1;
-    const i = Math.floor((sy - L.top) / L.rowH);
-    return i < MENU_ROWS() ? i : -1;
-  }
+  // ---------------------------------------------------------------- hangar menu (upgrades, weapons, ships, cheats)
+  let menuOpen = false, menuHover = -1, menuMsg = '', menuMsgT = 0, menuTab = 0;
+  const MENU_MAX_ROWS = 9;                          // also the number keys 1-9
+  const menuTabs = () => cfg.cheats ? ['UPGRADES', 'WEAPONS', 'SHIPS', 'CHEATS'] : ['UPGRADES', 'WEAPONS', 'SHIPS'];
 
   function menuFlash(msg) { menuMsg = msg; menuMsgT = 2; }
 
@@ -2379,17 +2576,87 @@
     if (credits < c) { menuFlash('NOT ENOUGH CREDITS'); return; }
     credits -= c;
     up[u.id]++;
-    if (u.id === 'shield') shield.charges = up.shield;
+    if (u.id === 'shield') shield.charges = maxShield();
     if (u.id === 'rainbow') rainbowOn = true;
     saveGame();
     menuFlash(u.name + ' UPGRADED');
   }
 
+  // A weapon or ship: buy it once, then click to equip.
+  function shopRow(item, set, current, equip) {
+    const has = set.has(item.id), cur = item === current;
+    return {
+      name: item.name, desc: item.desc,
+      right: cur ? 'EQUIPPED' : has ? 'OWNED' : '$' + item.cost,
+      col: cur ? '#9dff7a' : has ? '#a9b4d6' : credits >= item.cost ? '#ffd75a' : '#7a6a4a',
+      act() {
+        if (!has) {
+          if (credits < item.cost) { menuFlash('NOT ENOUGH CREDITS'); return; }
+          credits -= item.cost;
+        }
+        equip(item.id);
+        menuFlash(item.name + ' EQUIPPED');
+      }
+    };
+  }
+
+  // Rows of the current tab: { name, desc, right, col, pips?, act }. The last row closes the menu.
+  function menuRows() {
+    const tabs = menuTabs();
+    menuTab = clamp(menuTab, 0, tabs.length - 1);
+    const tab = tabs[menuTab], toggle = v => ({ right: v ? 'ON' : 'OFF', col: v ? '#9dff7a' : '#ffb36b' });
+    let rows;
+    if (tab === 'UPGRADES') {
+      rows = UPGRADES.map(u => {
+        const lv = up[u.id], c = upgradeCost(u);
+        const lab = u.id === 'rainbow' && lv ? { right: rainbowOn ? 'ON' : 'OFF', col: rainbowOn ? '#9dff7a' : '#8a93b0' }
+          : lv >= u.max ? { right: 'MAX', col: '#8a93b0' }
+          : { right: '$' + c, col: credits >= c ? '#ffd75a' : '#7a6a4a' };
+        return { name: u.name, desc: u.desc, pips: [lv, u.max], ...lab, act: () => buyUpgrade(u) };
+      });
+      rows.push({ name: 'AUTOPILOT', desc: 'FLIES THE SHIP HOME AFTER ' + cfg.idleReturn + ' S IDLE. H TOGGLES',
+        ...toggle(cfg.autopilot), act: () => toggleAutopilot() });
+    } else if (tab === 'WEAPONS') rows = WEAPONS.map(w => shopRow(w, owned.weapons, weaponDef, setWeapon));
+    else if (tab === 'SHIPS') rows = SHIPS.map(sh => shopRow(sh, owned.ships, shipDef, setShip));
+    else rows = CHEATS.map(c => ({ name: c.name, desc: c.desc, ...(c.flag ? toggle(cheat[c.flag]) : { right: '', col: '' }), act: () => runCheat(c) }));
+    rows.push({ name: 'CLOSE  (TAB / ESC)', close: true, desc: '', right: '', col: '', act: () => { menuOpen = false; } });
+    return rows;
+  }
+
+  function menuLayout() {
+    const w = Math.min(260, W - 8), rowH = 11;
+    const h = 40 + MENU_MAX_ROWS * rowH + 16;
+    const y = Math.max(2, Math.round((H - h) / 2));
+    return { x: Math.round((W - w) / 2), y, w, h, rowH, tabY: y + 24, top: y + 38 };
+  }
+
+  function menuRowAt(sx, sy) {
+    const L = menuLayout();
+    if (sx < L.x || sx > L.x + L.w || sy < L.top) return -1;
+    const i = Math.floor((sy - L.top) / L.rowH);
+    return i < menuRows().length ? i : -1;
+  }
+
+  // x positions of the tab labels: [{ x, w }]
+  function menuTabRects() {
+    const L = menuLayout();
+    let x = L.x + 8;
+    return menuTabs().map(t => { const r = { x, w: textWidth(t) }; x += r.w + 10; return r; });
+  }
+  function menuTabAt(sx, sy) {
+    const L = menuLayout();
+    if (sy < L.tabY - 4 || sy > L.tabY + 9) return -1;
+    return menuTabRects().findIndex(r => sx >= r.x - 4 && sx <= r.x + r.w + 4);
+  }
+  function menuSetTab(i) {
+    const n = menuTabs().length;
+    menuTab = mod(i, n);
+    menuHover = -1; menuMsgT = 0;
+  }
+
   function menuActivate(i) {
-    if (i < 0) return;
-    if (i < UPGRADES.length) buyUpgrade(UPGRADES[i]);
-    else if (i === UPGRADES.length) toggleAutopilot();
-    else menuOpen = false;
+    const row = menuRows()[i];
+    if (row) row.act();
   }
 
   function toggleMenu(open) {
@@ -2401,51 +2668,48 @@
 
   function drawMenu(dt) {
     if (menuMsgT > 0) menuMsgT -= dt;
-    const L = menuLayout();
+    const L = menuLayout(), rows = menuRows(), tabs = menuTabs();
     ctx.globalAlpha = 0.55; ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H);
     ctx.globalAlpha = 0.94; ctx.fillStyle = '#080b17'; ctx.fillRect(L.x, L.y, L.w, L.h);
     ctx.globalAlpha = 1; ctx.fillStyle = '#3b4a7a';
     ctx.fillRect(L.x, L.y, L.w, 1); ctx.fillRect(L.x, L.y + L.h - 1, L.w, 1);
     ctx.fillRect(L.x, L.y, 1, L.h); ctx.fillRect(L.x + L.w - 1, L.y, 1, L.h);
 
-    drawText('UPGRADES', L.x + 8, L.y + 8, '#ffe8a8', 2);
+    drawText('HANGAR', L.x + 8, L.y + 8, '#ffe8a8', 2);
     const cr = 'CREDITS $' + credits;
     drawText(cr, L.x + L.w - 8 - textWidth(cr), L.y + 12, '#ffd75a');
 
+    menuTabRects().forEach((r, i) => {
+      const on = i === menuTab;
+      drawText(tabs[i], r.x, L.tabY, on ? '#ffe8a8' : tabs[i] === 'CHEATS' ? '#a06c9a' : '#6f7aa3');
+      if (on) { ctx.fillStyle = '#ffe8a8'; ctx.fillRect(r.x, L.tabY + 7, r.w, 1); }
+    });
+    ctx.fillStyle = '#232c4d'; ctx.fillRect(L.x + 4, L.tabY + 10, L.w - 8, 1);
+
     const right = L.x + L.w - 8, pipX = L.x + Math.round(L.w * 0.5);
-    for (let i = 0; i < MENU_ROWS(); i++) {
+    rows.forEach((row, i) => {
       const y = L.top + i * L.rowH;
       if (i === menuHover) { ctx.fillStyle = '#1c2442'; ctx.fillRect(L.x + 2, y - 2, L.w - 4, L.rowH - 1); }
-      if (i < UPGRADES.length) {
-        const u = UPGRADES[i], lv = up[u.id], maxed = lv >= u.max;
-        drawText((i + 1) + ' ' + u.name, L.x + 8, y, '#e8ecff');
-        for (let l = 0; l < u.max; l++) {
-          ctx.fillStyle = l < lv ? '#7ff0ff' : '#2b3550';
+      drawText(row.close ? row.name : (i + 1) + ' ' + row.name, L.x + 8, y, row.close ? '#a9b4d6' : '#e8ecff');
+      if (row.pips) {
+        for (let l = 0; l < row.pips[1]; l++) {
+          ctx.fillStyle = l < row.pips[0] ? '#7ff0ff' : '#2b3550';
           ctx.fillRect(pipX + l * 6, y + 1, 4, 3);
         }
-        let label, col;
-        if (u.id === 'rainbow' && lv) { label = rainbowOn ? 'ON' : 'OFF'; col = rainbowOn ? '#9dff7a' : '#8a93b0'; }
-        else if (maxed) { label = 'MAX'; col = '#8a93b0'; }
-        else { const c = upgradeCost(u); label = '$' + c; col = credits >= c ? '#ffd75a' : '#7a6a4a'; }
-        drawText(label, right - textWidth(label), y, col);
-      } else if (i === UPGRADES.length) {
-        drawText((i + 1) + ' AUTOPILOT', L.x + 8, y, '#e8ecff');
-        const lab = cfg.autopilot ? 'ON' : 'OFF';
-        drawText(lab, right - textWidth(lab), y, cfg.autopilot ? '#9dff7a' : '#ffb36b');
-      } else {
-        drawText('CLOSE  (TAB / ESC)', L.x + 8, y, '#a9b4d6');
       }
-    }
+      if (row.right) drawText(row.right, right - textWidth(row.right), y, row.col);
+    });
+    const hover = rows[menuHover];
     const foot = menuMsgT > 0 ? menuMsg
-      : menuHover >= 0 && menuHover < UPGRADES.length ? UPGRADES[menuHover].desc
-      : menuHover === UPGRADES.length ? 'FLIES THE SHIP HOME AFTER ' + cfg.idleReturn + ' S IDLE. H TOGGLES'
-      : 'EARN CREDITS: STARS, ROCKS, UFOS, LANDINGS';
+      : hover && hover.desc ? hover.desc
+      : menuTab === 0 ? 'EARN CREDITS: STARS, ROCKS, UFOS, LANDINGS'
+      : 'LEFT / RIGHT SWITCH TABS. Q SWAPS WEAPON IN FLIGHT';
     drawText(foot, L.x + 8, L.y + L.h - 11, menuMsgT > 0 ? '#ffe8a8' : '#a9b4d6');
   }
 
   // HUD button that opens the menu (top-right)
   function menuButtonRect() {
-    const label = '[TAB] UPGRADES  $' + credits;
+    const label = '[TAB] HANGAR  $' + credits;
     const w = textWidth(label) + 6;
     return { x: W - w - 4, y: 4, w, h: 9, label };
   }
@@ -2516,7 +2780,19 @@
       if (rocket.mode === 'return') { drawText('AUTOPILOT FLYING HOME', 6, y, '#7ff0ff'); y += 8; }
       else { drawText('AUTOPILOT ' + (cfg.autopilot ? 'ON' : 'OFF'), 6, y, cfg.autopilot ? '#5f7fa8' : '#ffb36b'); y += 8; }
       if (turboT > 0) { drawText('TURBO ' + Math.ceil(turboT), 6, y, '#ff9cf0'); y += 8; }
-      if (up.shield) drawText('SHIELD ' + shield.charges + '/' + up.shield, 6, y, '#7ff0ff');
+      if (maxShield()) { drawText('SHIELD ' + shield.charges + '/' + maxShield(), 6, y, '#7ff0ff'); y += 8; }
+      if (playing) {
+        // weapon name + heat gauge
+        const wl = weaponDef.name, bx = 6 + textWidth(wl) + 5, bw = 40;
+        drawText(wl, 6, y, overheated ? '#ff6b5b' : '#a9b4d6');
+        ctx.fillStyle = '#05060f'; ctx.fillRect(bx - 1, y - 1, bw + 2, 7);
+        ctx.fillStyle = '#2b3550'; ctx.fillRect(bx, y, bw, 5);
+        ctx.fillStyle = overheated ? (Math.floor(time * 8) % 2 ? '#ff6b5b' : '#ffd75a') : heat > 0.7 ? '#ffb36b' : '#7ff0ff';
+        ctx.fillRect(bx, y, Math.round(bw * heat), 5);
+        if (overheated) drawText('OVERHEAT', bx + bw + 5, y, '#ff6b5b');
+        y += 8;
+      }
+      if (cheating()) drawText('CHEATS ON', 6, y, '#ff9cf0');
       const b = menuButtonRect();
       ctx.fillStyle = '#0d1430'; ctx.fillRect(b.x, b.y, b.w, b.h);
       ctx.fillStyle = '#3b4a7a'; ctx.fillRect(b.x, b.y + b.h, b.w, 1);
@@ -2528,7 +2804,7 @@
       if (hintT > 0) {
         ctx.globalAlpha = hudAlpha * clamp(hintT, 0, 1);
         const lines = cfg.keyboardControl
-          ? ['UP: THRUST   LEFT/RIGHT: ROTATE   DOWN: STOP SPIN', 'SPACE: FIRE   H: AUTOPILOT   TAB: UPGRADES']
+          ? ['UP: THRUST   LEFT/RIGHT: ROTATE   DOWN: STOP SPIN', 'SPACE: FIRE   Q: WEAPON   H: AUTOPILOT   TAB: HANGAR']
           : ['DRAG THE ROCKET - CLICK ROCKS AND STARS'];
         lines.forEach((l, i) => drawText(l, Math.round((W - textWidth(l)) / 2), 28 + i * 8, '#ffe8a8'));
       }
@@ -2668,7 +2944,9 @@
     if (menuOpen) {
       const L = menuLayout();
       const inside = mouse.msx >= L.x && mouse.msx <= L.x + L.w && mouse.msy >= L.y && mouse.msy <= L.y + L.h;
+      const tab = menuTabAt(mouse.msx, mouse.msy);
       if (!inside) toggleMenu(false);
+      else if (tab >= 0) menuSetTab(tab);
       else menuActivate(menuRowAt(mouse.msx, mouse.msy));
       return;
     }
@@ -2731,6 +3009,8 @@
     if (menuOpen) {
       e.preventDefault();
       if (e.code === 'Escape') toggleMenu(false);
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') menuSetTab(menuTab - 1);
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') menuSetTab(menuTab + 1);
       const d = /^Digit([1-9])$/.exec(e.code);
       if (d && !e.repeat) menuActivate(Number(d[1]) - 1);
       return;
@@ -2739,6 +3019,10 @@
     if (!cfg.keyboardControl) return;
     if (e.code === 'KeyH') {
       if (!e.repeat) toggleAutopilot();
+      return;
+    }
+    if (e.code === 'KeyQ') {
+      if (!e.repeat) cycleWeapon();
       return;
     }
     const k = KEYMAP[e.code];
@@ -2977,7 +3261,12 @@
     sputniks: n => spawnSputniks(n), sputnikList: () => sputniks.map(s => ({ x: s.x, y: s.y, state: s.state, hp: s.hp })),
     ufo: (hunt) => spawnUfo(hunt), shootUfo: () => damageUfo(), nuke: () => launchNuke(), cow: () => spawnCow(cam.x + W * 0.3),
     bsod: () => bsodEarth(), konami: () => konami(), pose: x => restPose(x),
-    credits: n => { credits = n; saveGame(); }, econ: () => ({ credits, up: { ...up }, shield: { ...shield }, menuOpen, autopilot: cfg.autopilot }),
+    credits: n => { credits = n; saveGame(); },
+    econ: () => ({ credits, up: { ...up }, shield: { ...shield }, menuOpen, menuTab, autopilot: cfg.autopilot,
+      weapon: weaponDef.id, ship: shipDef.id, weapons: [...owned.weapons], ships: [...owned.ships],
+      heat, overheated, bullets: bullets.length, cheat: { ...cheat } }),
+    weapon: id => setWeapon(id), ship: id => setShip(id), fire: () => tryFire(),
+    cheat: (flag, on) => { if (flag in cheat) cheat[flag] = !!on; },
     place: (x, y, a, vx = 0, vy = 0, w = 0, noIdle = false) => {
       Object.assign(rocket, { mode: 'manual', x, y, angle: a, vx, vy, w, grounded: false, keysUsed: true, airT: 2, sleepT: 0,
         releaseT: noIdle ? 1e12 : 0 });
@@ -2999,10 +3288,13 @@
     takeControl: () => takeControl(),
     toggleMenu: () => toggleMenu(),
     toggleAutopilot: () => toggleAutopilot(),
+    cycleWeapon: () => cycleWeapon(),
     pause: p => setPaused(!!p),
     get paused() { return paused; },
     get menuOpen() { return menuOpen; },
-    get credits() { return credits; }
+    get credits() { return credits; },
+    get weapon() { return weaponDef.id; },
+    get ship() { return shipDef.id; }
   };
 
   loadSave();

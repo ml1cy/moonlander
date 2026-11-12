@@ -39,7 +39,7 @@ Autopilot (`cfg.autopilot`, H key): when on, `idleCheck()` calls `startReturn()`
 - Rotation: angular velocity `w`, side thrusters add `±2.4 rad/s² × steering%`, cap 2.6 rad/s, light spin friction (more with the Gyro upgrade). **Nothing levels the ship** — that's a deliberate design choice the owner asked for.
 - 4 substeps per frame. `contactPass()` tests the `HULL` points against the terrain and applies normal + friction impulses (restitution 0.12, μ 0.8), with position correction through the same effective mass so a sunk foot pivots the hull instead of lifting it. Contact normals use the broad slope (±4 px), feet flatter still, so 1-px jaggies don't twist the ship.
 - Landing: when both feet touch, tilt vs terrain < 0.42 rad and the ship is slow, the legs "bed in" to `restPose` and the ship sleeps (`settle(pose)`, +$10, "NICE LANDING"). Beyond that it tips over ("HOUSTON, WE HAVE A PROBLEM").
-- Crashes: foot impact > `0.32·H` or body impact > `0.17·H` (× Landing Legs upgrade) explodes the ship if `cfg.crashes`, unless a shield charge absorbs it (1 s grace after).
+- Crashes: foot impact > `0.32·H` or body impact > `0.17·H` (× Landing Legs upgrade × the ship's `hull`) explodes the ship if `cfg.crashes`, unless a shield charge absorbs it (1 s grace after).
 
 ## Loop determinism (wallpaper idle)
 
@@ -56,7 +56,17 @@ Check after any change to idle visuals: render one period with `__moonLanderCapt
 
 `credits`, upgrade levels `up` and `score` are saved to `localStorage['moonLander.save.v1']` (per origin, so the wallpaper and the website keep separate saves). Earn: star 5, asteroid 2/4/7, landing 10, rescue 25, Sputnik 15 (+20 per full squadron), UFO 50. Crash: −10.
 
-Upgrades (`UPGRADES` array; cost = base × 1.7^level): Engine, Gyro, Landing Legs, Laser, Shield, Star Magnet, Rainbow Exhaust. Menu: Tab/G or the HUD button; rows are clickable or 1–9; the game pauses while it's open.
+Upgrades (`UPGRADES` array; cost = base × 1.7^level): Engine, Gyro, Landing Legs, Laser, Shield, Star Magnet, Rainbow Exhaust.
+
+**Hangar menu:** Tab/G or the HUD button; the game pauses while it's open. Tabs (`menuTabs()`): Upgrades, Weapons, Ships, Cheats (hidden when `cfg.cheats` is off); ← → / A D or a click switch tabs. `menuRows()` returns the current tab's rows as `{ name, desc, right, col, pips?, act }`, so drawing, clicks and the 1–9 keys are shared by every tab (keep each tab ≤ 9 rows including Close).
+
+## Weapons, heat and ships
+
+- **Weapons** (`WEAPONS`): `cd` is the time between shots, `heat` the heat added per shot. Laser (spread comes from the Laser upgrade), Scatter Gun (5 short-lived pellets), Railgun (`pierce` bullets that remember what they already hit in `b.hit`), Missiles (`kind: 'missile'`, steered by `steerMissile`, area damage in `blastAt`). All of them are entries in `bullets[]`. Q / `MoonLander.cycleWeapon()` cycles through the owned ones.
+- **Heat:** `heat` (0–1) rises per shot and falls by `HEAT_COOL` per second (× the ship's `cool`). At 1 the weapon is `overheated` and `tryFire()` refuses until heat is back under `HEAT_READY`; it cools 1.5× faster while locked. Turbo halves heat per shot.
+- **Ships** (`SHIPS`): multipliers for thrust, turning, crash tolerance (`hull`), weapon cooling (`cool`) and bonus shield charges. `shapeShip()` reshapes the recoloured sprite; the collision hull is shared. The Gunship fires from its side cannons (`muzzleWorld()`).
+- Owned weapons/ships and the equipped ones are stored in the same save as credits.
+- **Cheats** (`CHEATS`, `cheat` flags): god mode, no overheat and low gravity are per-session toggles; the others act once (and what they unlock is saved).
 
 To add an upgrade: add an entry to `UPGRADES`, a key to `up`, and read `up.<id>` where it takes effect. Rows lay out automatically (keep the total ≤ 9 for the number keys).
 
