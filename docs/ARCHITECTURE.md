@@ -59,7 +59,7 @@ Check after any change to idle visuals: render one period with `__moonLanderCapt
 
 `credits`, upgrade levels `up` and `score` are saved to `localStorage['moonLander.save.v1']` (per origin, so the wallpaper and the website keep separate saves). Earn: star 5, asteroid 2/4/7, landing 10, rescue 25, Sputnik 15 (+20 per full squadron), UFO 50. Crash: −10.
 
-Upgrades (`UPGRADES` array; cost = base × 1.7^level): Engine, Gyro, Landing Legs, Laser, Shield, Star Magnet, Rainbow Exhaust.
+Upgrades (`UPGRADES` array; cost = base × 1.7^level): Engine, Side Thrusters (+20 % strafe and +6 % turn rate per level), Gyro, Landing Legs, Laser, Shield, Star Magnet, Rainbow Exhaust.
 
 **Hangar menu:** Tab/G or the HUD button; the game pauses while it's open. Tabs (`menuTabs()`): Upgrades, Weapons, Ships, Worlds, and Cheats (only after it has been unlocked with Ctrl+Alt+Shift+G, and never when `cfg.cheats` is off); ← → / A D or a click switch tabs. `menuRows()` returns the current tab's rows as `{ name, desc, right, col, pips?, act }`, so drawing, clicks and the 1–9 keys are shared by every tab (keep each tab ≤ `MENU_MAX_ROWS` = 11 rows including Close; keys 1–9 and 0 pick the first ten).
 

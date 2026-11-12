@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.0 — 2026-11-12
+
+- **Side Thrusters upgrade** — five levels in the hangar's Upgrades tab. Each level makes the Q / E side thrusters 20 % stronger and turning 6 % quicker.
+
 ## 1.6.0 — 2026-11-12
 
 - **Campaign** — worlds are now unlocked by beating bosses instead of being bought. The route is Moon → Mercury → Venus → Mars → Io → Titan → Miranda → Triton → Pluto → Earth. Unlocked worlds can be revisited from the Worlds tab; locked ones say which boss to beat.

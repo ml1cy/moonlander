@@ -1529,9 +1529,9 @@
   const THRUST = () => H * 0.27 * (1 + 0.12 * up.engine) * shipDef.thrust * (turboT > 0 ? 1.35 : 1);
   // Side thrusters: gentle angular acceleration, capped spin, a little friction so taps
   // give small, controllable turns. Nothing pulls the ship back to level.
-  const ROT_ACC = () => 2.4 * shipDef.turn * cfg.steering / 100;
+  const ROT_ACC = () => 2.4 * shipDef.turn * (1 + 0.06 * up.thrusters) * cfg.steering / 100;
   const ROT_MAX = 2.6;
-  const STRAFE = () => H * 0.13 * shipDef.thrust * (turboT > 0 ? 1.35 : 1);
+  const STRAFE = () => H * 0.13 * (1 + 0.2 * up.thrusters) * shipDef.thrust * (turboT > 0 ? 1.35 : 1);
 
   // Little jets from the side of the hull opposite to the push (dir: 1 = pushing right).
   function spawnStrafePuffs(dir, dt) {
@@ -3209,6 +3209,7 @@
   // ================================================================ credits & upgrades
   const UPGRADES = [
     { id: 'engine', name: 'ENGINE', desc: 'MORE THRUST', max: 5, base: 40 },
+    { id: 'thrusters', name: 'SIDE THRUSTERS', desc: 'STRONGER Q / E SIDE THRUSTERS AND QUICKER TURNING', max: 5, base: 45 },
     { id: 'gyro', name: 'GYRO', desc: 'DAMPS SPIN WHEN YOU LET GO OF THE ARROWS', max: 3, base: 60 },
     { id: 'legs', name: 'LANDING LEGS', desc: 'SURVIVE HARDER LANDINGS AND HITS', max: 4, base: 50 },
     { id: 'laser', name: 'LASER', desc: 'FASTER FIRE, THEN DOUBLE AND TRIPLE SHOT', max: 5, base: 50 },
@@ -3216,7 +3217,7 @@
     { id: 'magnet', name: 'STAR MAGNET', desc: 'CATCH SHOOTING STARS FROM FURTHER AWAY', max: 3, base: 70 },
     { id: 'rainbow', name: 'RAINBOW EXHAUST', desc: 'COSMETIC. CLICK AGAIN TO TURN ON/OFF', max: 1, base: 300 }
   ];
-  const up = { engine: 0, gyro: 0, legs: 0, laser: 0, shield: 0, magnet: 0, rainbow: 0 };
+  const up = { engine: 0, thrusters: 0, gyro: 0, legs: 0, laser: 0, shield: 0, magnet: 0, rainbow: 0 };
   let credits = 0, rainbowOn = true;
 
   // Ship types: multipliers on thrust, turning, crash tolerance and weapon cooling.
