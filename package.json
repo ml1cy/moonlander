@@ -1,6 +1,6 @@
 {
   "name": "moon-lander",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "private": true,
   "description": "Pixel-art moon lander: a Lively Wallpaper and a browser game sharing one engine.",
   "type": "module",

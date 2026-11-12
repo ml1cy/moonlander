@@ -251,6 +251,21 @@
   // Camera zoom (1 = normal, < 1 = zoomed out). The world layer is scaled about the bottom-centre
   // of the screen, so these give the part of the world that is actually visible.
   let zoom = 1;
+  // Pixel density of the canvas: normally 1 canvas pixel per art pixel. When the camera zooms out the
+  // canvas gets `density` pixels per art pixel (up to the screen's own resolution, PS), so a sprite
+  // drawn at 1/3 size still has every one of its pixels instead of being squashed into a third of them.
+  let density = 1;
+  function updateDensity() {
+    const max = Math.max(1, Math.min(PS, 4));
+    const need = Math.min(max, Math.ceil(1 / zoom - 0.001));
+    const relaxed = Math.min(max, Math.ceil(1 / (zoom + 0.06) - 0.001));     // hysteresis: don't flip-flop at a threshold
+    const next = need > density ? need : relaxed < density ? relaxed : density;
+    if (next === density) return;
+    density = next;
+    canvas.width = W * density;            // resizing clears the canvas and resets its state
+    canvas.height = H * density;
+    ctx.imageSmoothingEnabled = false;
+  }
   const viewL = () => cam.x + W / 2 - W / (2 * zoom);
   const viewR = () => cam.x + W / 2 + W / (2 * zoom);
   const viewT = () => cam.y + H - H / zoom;
@@ -282,6 +297,7 @@
     CEIL = cfg.worldSize > 1 ? H * (Math.max(1, cfg.worldSize | 0) - 1) : 0;    // arena = worldSize screens wide and tall
     RW = W * 2;
 
+    density = 1;
     canvas.width = W;
     canvas.height = H;
     canvas.style.width = (W * PS / DPR) + 'px';
@@ -3783,7 +3799,8 @@
 
   function render() {
     rcx = Math.round(cam.x); rcy = Math.round(cam.y);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    updateDensity();
+    ctx.setTransform(density, 0, 0, density, 0, 0);       // everything below still draws in art pixels
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = skyTopCol();
@@ -3942,7 +3959,7 @@
   window.__moonLanderDebug = {
     state: () => ({
       mode: rocket.mode, state: rocket.state, x: rocket.x, y: rocket.y, vx: rocket.vx, vy: rocket.vy, angle: rocket.angle, w: rocket.w,
-      grounded: rocket.grounded, cam: { ...cam }, zoom, alt: altFrac(), PS, DPR, W, H, WW, CEIL, score: { ...score },
+      grounded: rocket.grounded, cam: { ...cam }, zoom, density, canvasW: canvas.width, alt: altFrac(), PS, DPR, W, H, WW, CEIL, score: { ...score },
       asteroids: asteroids.map(a => ({ x: a.x, y: a.y, r: a.r })), ufo: ufo ? { x: ufo.x, y: ufo.y, state: ufo.state, hp: ufo.hp } : null,
       earth: earth.state, earthX: earth.x, earthY: earthScreenY(), earthR: earth.R, shooting: shooting.length,
       toasts: toasts.map(t => t.text), turbo: turboT

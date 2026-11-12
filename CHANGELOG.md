@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.2 — 2026-11-12
+
+- **Sharper zoom** — the canvas now gains pixel density as the camera zooms out (2× below full size, 3× when the whole arena is in view, up to the screen's own resolution). A zoomed-out ship or enemy keeps every pixel of its sprite instead of being squashed into a third of them. Near the ground it is the usual chunky 1× canvas.
+
 ## 1.5.1 — 2026-11-12
 
 - **Zoom shows the whole arena** — the zoom is now tied directly to the ship's height: the view grows so the ground stays at the bottom of the screen, until the entire arena is in view at the top of the sky. The arena is now as many screens tall as it is wide (the "World size" setting), so the fully zoomed-out view shows exactly all of it.
