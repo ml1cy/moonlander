@@ -298,6 +298,34 @@ console.log('web game');
   });
   check(strafe.e > 5 && strafe.q < -5 && strafe.eAngle === 0 && strafe.qAngle === 0, `Q / E strafe left and right (vx ${strafe.q.toFixed(1)} / ${strafe.e.toFixed(1)})`);
 
+  // dragging the ship through things does no damage, unless the Drag Smash cheat is on
+  const dragRun = await page.evaluate(() => {
+    const d = window.__moonLanderDebug, ML = window.MoonLander, r = {};
+    for (const k of ['aliens', 'sputniks', 'natives']) ML.setProperty(k, false);
+    const tryDrag = () => {
+      d.clear();
+      const s = d.state();
+      d.place(s.W * 0.5, s.H * 0.4, 0, 0, 0, 0, true);
+      d.drag(true);
+      const at = d.state();
+      d.asteroid(at.x, at.y, 2);
+      const before = at.score.rocks, placed = d.state().asteroids.length;
+      for (let i = 0; i < 4; i++) window.__moonLanderStep(1 / 60);
+      const mode = d.state().mode;
+      d.drag(false);
+      return { mode, placed, rocks: d.state().score.rocks - before };
+    };
+    r.off = tryDrag();
+    d.cheat('dragSmash', true);
+    r.on = tryDrag();
+    d.cheat('dragSmash', false);
+    d.clear();
+    for (const k of ['aliens', 'sputniks', 'natives']) ML.setProperty(k, true);
+    return r;
+  });
+  check(dragRun.off.mode === 'drag' && dragRun.off.placed >= 1 && dragRun.off.rocks === 0, 'dragging the ship through a rock does not damage it');
+  check(dragRun.on.rocks > 0, 'the Drag Smash cheat restores drag damage');
+
   // boss fights: kills fill the meter, the boss arrives, attacks, and can be beaten on every world
   const bossRun = await page.evaluate(() => {
     const d = window.__moonLanderDebug, r = { fought: 0, names: [] };

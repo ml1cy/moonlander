@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.1 — 2026-11-13
+
+- **Dragging no longer damages enemies** — a ship being dragged with the mouse passes through enemies, bosses and asteroids without hurting them or being knocked about. The old behaviour is now a cheat: Drag Smash, in the hidden cheats tab.
+
 ## 1.8.0 — 2026-11-12
 
 - **Playable trips between worlds** — the separate travel animation is gone. The ship now lifts off from where it stands in the play space, climbs out of the atmosphere (the sky fades to black, the band of air thins, stars start streaking past), crosses space with the old world falling away below and the new one growing ahead, then comes down through the new world's atmosphere, glowing on the way in, and lands.

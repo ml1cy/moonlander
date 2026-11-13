@@ -3388,8 +3388,8 @@
   }
 
   // Cheats (not saved, except what they unlock)
-  const cheat = { god: false, noHeat: false, lowGrav: false };
-  const cheating = () => cheat.god || cheat.noHeat || cheat.lowGrav;
+  const cheat = { god: false, noHeat: false, lowGrav: false, dragSmash: false };
+  const cheating = () => cheat.god || cheat.noHeat || cheat.lowGrav || cheat.dragSmash;
   function clearEnemies() {
     asteroids.length = 0; sputniks.length = 0; foes.length = 0; plasma.length = 0; wave = null; foeWave = null;
     boss = null; bossDelay = 0;
@@ -3400,6 +3400,7 @@
     { name: 'GOD MODE', desc: 'NOTHING CAN DESTROY THE SHIP', flag: 'god' },
     { name: 'NO OVERHEAT', desc: 'THE WEAPON NEVER HEATS UP', flag: 'noHeat' },
     { name: 'LOW GRAVITY', desc: 'FLOATY FLIGHT', flag: 'lowGrav' },
+    { name: 'DRAG SMASH', desc: 'DRAGGING THE SHIP INTO ENEMIES AND ROCKS DAMAGES THEM', flag: 'dragSmash' },
     { name: 'UNLOCK EVERYTHING', desc: 'ALL WEAPONS, SHIPS AND WORLDS',
       run: () => {
         for (const w of WEAPONS) owned.weapons.add(w.id);
@@ -3825,7 +3826,10 @@
   // ================================================================ collisions
   function updateCollisions() {
     const active = rocket.mode === 'manual' || rocket.mode === 'drag';
-    if (active) {
+    // A ship being dragged with the mouse passes through enemies and rocks without hurting them
+    // (or itself). The Drag Smash cheat brings the old battering-ram behaviour back.
+    const ramming = rocket.mode === 'manual' || (rocket.mode === 'drag' && cheat.dragSmash);
+    if (ramming) {
       // sputnik ramming
       const c = Math.cos(rocket.angle), sn = Math.sin(rocket.angle);
       for (let i = sputniks.length - 1; i >= 0; i--) {
@@ -3846,7 +3850,7 @@
         rocket.w += rand(-2, 2);
       }
     }
-    if (active) {
+    if (ramming) {
       // natives: ramming hurts both sides (mines have their own fuse)
       for (let i = foes.length - 1; i >= 0; i--) {
         const f = foes[i];
@@ -3863,7 +3867,7 @@
         rocket.w += rand(-2, 2);
       }
     }
-    if (active) {
+    if (ramming) {
       for (let i = asteroids.length - 1; i >= 0; i--) {
         const a = asteroids[i];
         const dx = wd(rocket.x - a.x), dy = rocket.y - a.y, d = Math.hypot(dx, dy) || 1;
@@ -4329,7 +4333,9 @@
     }),
     asteroid: (x, y, size) => spawnAsteroid({ x, y, vx: 0, vy: 0, size, spin: 0.5 }),
     foes: (type, n) => spawnFoes(type, n), foeList: () => foes.map(f => ({ type: f.type, x: f.x, y: f.y, hp: f.hp, state: f.state, sub: f.sub })),
-    clear: () => clearEnemies(), foeTypes: () => Object.keys(FOE_TYPES), boss: () => spawnBoss(), bossKills: n => bossProgress(n),
+    clear: () => clearEnemies(), drag: on => {            // grab the ship where it is (the pointer is treated as being right on it, so it holds still)
+      if (on) { mouse.has = false; mouse.wx = rocket.x; mouse.wy = rocket.y; startDrag(rocket.x, rocket.y); } else endDrag();
+    }, foeTypes: () => Object.keys(FOE_TYPES), boss: () => spawnBoss(), bossKills: n => bossProgress(n),
     killBoss: () => { while (boss && foes.includes(boss)) damageFoe(foes.indexOf(boss)); },
     bossState: () => ({ active: !!boss, name: boss ? boss.def.name : '', hp: boss ? boss.hp : 0, max: boss ? boss.def.hp : 0, meter: bossMeter, at: BOSS_AT,
       delay: bossDelay, beaten: [...owned.bosses] }), hitFoe: () => { if (foes.length) damageFoe(foes.length - 1); },

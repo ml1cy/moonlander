@@ -72,7 +72,7 @@ Upgrades (`UPGRADES` array; cost = base × 1.7^level): Engine, Side Thrusters (+
 - Owned weapons/ships and the equipped ones are stored in the same save as credits.
 - **Worlds** (`WORLDS`, near the config): `grav` multiplies gravity, `stars` the star density, `ground`/`skyTop`/`skyBottom` replace the colour settings (the Moon has none, so it keeps using them), and `body` + `bodyScale` pick what `buildEarth()` puts in the sky from `BODIES` (a `tex(x, y, z)` colour function, optional atmosphere tint, halo, `unlit` for the Sun, `rings` for Saturn). `setWorld()` triggers a rebuild; each world gets its own terrain seed. The sky body keeps Earth's one-turn-per-loop rotation, so the idle loop stays seamless on every world.
 - **Cheats tab unlock:** `toggleCheatsUnlock()` (Ctrl+Alt+Shift+G) flips `cheatsUnlocked` (saved) and toasts CHEATS UNLOCKED / CHEATS HIDDEN; hiding also clears the cheat flags.
-- **Cheats** (`CHEATS`, `cheat` flags): god mode, no overheat and low gravity are per-session toggles; the others act once (and what they unlock is saved).
+- **Cheats** (`CHEATS`, `cheat` flags): god mode, no overheat, low gravity and drag smash (lets a dragged ship ram enemies and rocks; without it `updateCollisions` skips ramming while `rocket.mode === 'drag'`) are per-session toggles; the others act once (and what they unlock is saved).
 
 To add an upgrade: add an entry to `UPGRADES`, a key to `up`, and read `up.<id>` where it takes effect. Rows lay out automatically (keep the total ≤ 9 for the number keys).
 
